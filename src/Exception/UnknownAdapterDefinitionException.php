@@ -7,8 +7,10 @@ namespace Drupal\flysystem\Exception;
 /**
  * Thrown when a binding references an adapter id no source defines.
  *
- * #5 deliberately defers this question to resolution; it surfaces here,
- * lazily, for the touched scheme only (B4).
+ * Settings shape validation deliberately does not check adapter
+ * references — only the schemes actually in use are checked, so a broken
+ * binding under an unused scheme cannot throw when a different scheme is
+ * touched. This exception surfaces at resolution, for that scheme only.
  */
 class UnknownAdapterDefinitionException extends \InvalidArgumentException {
 
