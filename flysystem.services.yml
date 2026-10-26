@@ -1,4 +1,9 @@
 # M1-01: factory-layer service registrations land here incrementally with
 # M1-02..M1-08. Scope guard: this module contributes ZERO services tagged
 # 'stream_wrapper' in M1 — enforced by tests/src/Unit contract tests.
-services: {}
+services:
+  # The Flysystem adapter plugin manager. Factory-layer services arrive
+  # row-by-row (issues #6-#8); scope guard holds: zero stream_wrapper tags.
+  plugin.manager.flysystem_adapter:
+    class: Drupal\flysystem\Plugin\FlysystemAdapterManager
+    arguments: ['@container.namespaces', '@cache.discovery', '@module_handler']
