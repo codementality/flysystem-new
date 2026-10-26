@@ -16,27 +16,28 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for M1-06 (Part 1): the binding resolver and precedence algorithm.
+ * Tests the binding resolver and its precedence algorithm.
  *
- * The row's clauses are expressed one per data set: adapter definitions
- * deep-merge per leaf with settings winning; a settings binding REPLACES
- * the same-scheme entity binding (not merged); disabled => TRUE resolves
- * the scheme to core-native (NULL); an unbound scheme resolves NULL;
- * settings-only schemes resolve normally. D8's "entity may replace a core
- * scheme unless settings pins it" falls out of the same walk — tested
- * explicitly.
+ * Each resolution rule is expressed one per data set: adapter definitions
+ * deep-merge per leaf with the higher-precedence source winning; a
+ * settings binding replaces the same-scheme entity binding whole (it
+ * does not merge); a binding marked disabled => TRUE resolves the scheme
+ * to core-native (NULL); an unbound scheme resolves NULL; settings-only
+ * schemes resolve normally. The behavior letting an entity binding
+ * replace a core scheme unless settings pins that scheme falls out of
+ * the same precedence walk, and is tested explicitly.
  *
- * Resolution composes with #5's validator at the touched-scheme moment
- * (B4 lazy timing): the resolver asks the validator about the EFFECTIVE
- * merged layer. The validator's plugin-locality question is answered by
- * the callable its caller injects — production will build that callable
- * from the plugin's feature declaration; these tests use a plain plugin-id
- * map so the resolver is tested without pulling in adapter plugins that
- * belong to other issues.
+ * Resolution composes with the settings validator at the touched-scheme
+ * moment: the resolver asks the validator about the effective merged
+ * layer, so validation errors surface only when a scheme is actually
+ * resolved. The validator's local-versus-remote question is answered by
+ * the callable its caller injects; these tests use a plain plugin-id map
+ * so the resolver is tested without depending on any adapter plugin.
  *
  * Sources are consumed strictly in the order given (highest precedence
- * first) and only through the interface — the seam M3's config-entity
- * source plugs into.
+ * first) and only through the definition-source interface — so any
+ * source, including future config-entity storage, plugs in without
+ * changing the resolver.
  */
 #[Group('flysystem')]
 #[CoversNothing]
@@ -47,12 +48,12 @@ final class BindingResolverPrecedenceTest extends TestCase {
    *
    * The locality callable stands in for the production answer: 'local' is
    * a local-storage plugin, 's3' is remote, anything else is unknown —
-   * which is exactly the three answers #5's validator consumes.
+   * the three answers the validator consumes.
    *
    * @param array $settings_layer
    *   The settings source layer.
    * @param array $entity_layer
-   *   The entity source layer (M3 stand-in via the array-backed source).
+   *   The entity source layer (supplied via the array-backed source).
    *
    * @return \Drupal\flysystem\Resolution\BindingResolver
    *   Resolver wired the way production will wire it, with fakes.
@@ -72,7 +73,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
   }
 
   /**
-   * The full precedence matrix from the row's clauses.
+   * Provides the full precedence matrix.
    */
   #[DataProvider('precedenceProvider')]
   public function testResolveAnswersThePrecedenceMatrix(array $settings, array $entity, string $scheme, ?array $expected): void {
@@ -226,7 +227,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         'private',
         NULL,
       ],
-      'D8 entity binding replaces a core scheme when settings does not pin it' => [
+      'entity binding replaces a core scheme when settings does not pin it' => [
         [],
         [
           'adapters' => [
@@ -254,7 +255,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
   }
 
   /**
-   * Verifies resolution validates the touched scheme lazily (B4).
+   * Verifies validation happens for the touched scheme only.
    */
   public function testValidSchemeResolvesWhileBrokenOtherSchemeStillThrowsOnlyOnTouch(): void {
     $settings = [
@@ -275,7 +276,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
   }
 
   /**
-   * Verifies the plugin-locality wiring honors #5's unknown-plugin rule.
+   * Verifies the plugin-locality wiring surfaces unknown plugins.
    */
   public function testUnknownPluginFailsAtResolutionOfTheTouchedScheme(): void {
     $this->expectException(UnknownAdapterPluginException::class);
@@ -287,20 +288,17 @@ final class BindingResolverPrecedenceTest extends TestCase {
   }
 
   /**
-   * Verifies remote backends are exempt from containment through wiring.
+   * Verifies remote backends are exempt from webroot containment.
    *
-   * D9 states the webroot containment rule applies to local-mode adapters
-   * only — a remote backend has no webroot concept, and "serve public
-   * files from outside the docroot" is legitimately expressed as a
-   * remote binding (that pairing is the module's primary use case: an
-   * S3-backed public://). #5 tested the exemption inside the validator
-   * with a fake callable; THIS test proves the resolver's wiring feeds
-   * the validator the right locality answer for the binding's plugin —
-   * 's3' resolves to remote and the public binding passes. The exemption
-   * and the rule are a matched pair: without this test, wiring that
-   * wrongly reported every plugin as local would pass the neighboring
-   * lazy-timing test while rejecting every real remote public binding at
-   * resolve time — the module's headline feature failing in production.
+   * Webroot containment applies to local-storage adapters only; a remote
+   * backend has no webroot concept, and "serve public files from outside
+   * the docroot" is legitimately expressed as a remote binding — the
+   * module's primary remote-storage use case. The validator's own tests
+   * cover the rule; this test proves the resolver feeds the validator
+   * the correct local-versus-remote answer for the plugin a binding
+   * references. Without that wiring, a wrongly local answer would pass
+   * the neighboring rule test while rejecting every remote public
+   * binding at resolve time — broken in production, green in the suite.
    */
   public function testRemoteBindingResolvesPubliclyWithExternalConfig(): void {
     $settings = [
@@ -308,7 +306,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
       'bindings' => ['public' => ['adapter' => 'cdn']],
     ];
     $resolved = $this->resolver($settings, [])->resolve('public');
-    self::assertSame('s3', $resolved['plugin'], 'The D9 exemption applies via the marker answer, not name guessing.');
+    self::assertSame('s3', $resolved['plugin'], 'The exemption follows the plugin-locality answer, not name guessing.');
   }
 
 }

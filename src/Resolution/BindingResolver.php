@@ -9,26 +9,25 @@ use Drupal\flysystem\Exception\UnknownAdapterDefinitionException;
 use Drupal\flysystem\Validation\SettingsValidator;
 
 /**
- * The single implementation of scheme binding precedence (D4/D8).
+ * Resolves a scheme to its effective adapter definition, or nothing.
  *
- * Sources are consulted in the order given, highest precedence first —
- * production passes settings.php then config entities (M3 plugs in as
- * another source; nothing below the resolver can tell them apart, which
- * is issue #4's seam). Rules, exactly as the row states them:
+ * Definition sources are consulted in the order given, highest precedence
+ * first — normally settings.php, with config entity storage (when present)
+ * layered below it. The rules:
  *
- * 1. A scheme bound in more than one source uses the HIGHEST binding,
- *    replaced whole — bindings do not merge across sources.
- * 2. Adapter definitions DO deep-merge per leaf across all sources, with
- *    the higher source winning each leaf; the winning binding's optional
- *    config overrides merge over its adapter on the same rule.
- * 3. disabled => TRUE resolves the scheme to core-native (NULL),
- *    as does having no binding at all (D7a coexistence).
+ * 1. A scheme bound in more than one source uses the highest-precedence
+ *    binding, taken whole — bindings do not merge across sources.
+ * 2. Adapter definitions deep-merge per leaf across all sources, the
+ *    higher source winning each leaf; the winning binding's optional
+ *    config overrides merge over its adapter definition on the same rule.
+ * 3. A binding marked disabled => TRUE — and a scheme with no binding at
+ *    all — resolves to NULL, meaning the scheme stays core-native.
  *
- * Resolution validates the touched scheme through #5's validator against
- * the EFFECTIVE merged layer, keeping B4 lazy timing and the D9 answer
- * honest: a binding only fails when something resolves through it, and
- * plugin-locality comes from the caller's validator wiring (marker
- * interface at discovery data), never from backend code execution.
+ * Resolution validates the touched scheme against the effective merged
+ * layer through the injected validator, so a broken binding fails only
+ * when something resolves through it — never at container build or
+ * install. The validator's local-versus-remote answer comes from wiring
+ * data (the plugin's declared features), not from running backend code.
  */
 class BindingResolver {
 
@@ -109,7 +108,8 @@ class BindingResolver {
     }
 
     // Validate the touched scheme against the effective layer, before any
-    // use of the binding (B4: this only fires for schemes being resolved).
+    // use of the binding: a failure surfaces only when something resolves
+    // through the broken scheme, never at container build or install.
     $this->validator->validateScheme($scheme, [
       'adapters' => $adapters,
       'bindings' => [$scheme => $binding],
