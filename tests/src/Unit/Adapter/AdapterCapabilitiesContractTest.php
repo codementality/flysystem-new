@@ -312,8 +312,7 @@ final class AdapterCapabilitiesContractTest extends TestCase {
   }
 
   /**
-   * Derives the honest URL mode from which optional interfaces the adapter
-   * implements (evaluation §1.11).
+   * Derives the honest URL mode from the adapter's optional interfaces.
    */
   private function urlModeOf(FilesystemAdapter $adapter): UrlMode {
     $public = $adapter instanceof PublicUrlGenerator;
