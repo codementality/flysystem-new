@@ -33,14 +33,16 @@ use Drupal\flysystem\Validation\SettingsValidator;
 class BindingResolver {
 
   /**
+   * Definition sources, highest precedence first.
+   *
    * @var \Drupal\flysystem\Definition\AdapterDefinitionSourceInterface[]
-   *   Sources in precedence order, highest first.
    */
   protected $sources;
 
   /**
+   * The settings validator applied to the touched scheme's layer.
+   *
    * @var \Drupal\flysystem\Validation\SettingsValidator
-   *   The settings validator applied to the touched scheme's layer.
    */
   protected $validator;
 

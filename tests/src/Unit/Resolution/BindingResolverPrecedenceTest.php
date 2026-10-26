@@ -81,50 +81,165 @@ final class BindingResolverPrecedenceTest extends TestCase {
   }
 
   /**
+   * Provides the precedence matrix.
+   *
    * @return array<string, array{0: array, 1: array, 2: string, 3: array|null}>
    *   Named cases: settings layer, entity layer, scheme, expected answer.
    */
   public static function precedenceProvider(): array {
-    $local_def = ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']];
+    $local_def = [
+      'plugin' => 'local',
+      'config' => ['root' => 'sites/default/files'],
+    ];
+    $settings_main = [
+      'adapters' => ['main' => $local_def],
+      'bindings' => ['public' => ['adapter' => 'main']],
+    ];
     return [
-      'unbound scheme resolves NULL' => [[], [], 'public', NULL],
-      'entity-only binding resolves the entity definition' => [[], ['adapters' => ['main' => $local_def], 'bindings' => ['public' => ['adapter' => 'main']]], 'public', ['plugin' => 'local', 'config' => ['root' => 'sites/default/files'], 'publicly_accessible' => TRUE]],
-      'settings-only scheme is valid' => [['adapters' => ['main' => $local_def], 'bindings' => ['backup' => ['adapter' => 'main']]], [], 'backup', ['plugin' => 'local', 'config' => ['root' => 'sites/default/files'], 'publicly_accessible' => FALSE]],
-      'settings binding replaces same-scheme entity binding' => [
-        ['adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 'settings-root']]], 'bindings' => ['public' => ['adapter' => 'main']]],
-        ['adapters' => ['other' => ['plugin' => 'local', 'config' => ['root' => 'entity-root']]], 'bindings' => ['public' => ['adapter' => 'other']]],
-        'public',
-        ['plugin' => 'local', 'config' => ['root' => 'settings-root'], 'publicly_accessible' => TRUE],
-      ],
-      'adapter definitions deep-merge per leaf, settings wins' => [
-        ['adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 'from-settings', 'keep' => 'settings']]], 'bindings' => ['public' => ['adapter' => 'main']]],
-        ['adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 'from-entity', 'entity_only' => TRUE]]], 'bindings' => []],
-        'public',
-        ['plugin' => 'local', 'config' => ['root' => 'from-settings', 'entity_only' => TRUE, 'keep' => 'settings'], 'publicly_accessible' => TRUE],
-      ],
-      'binding config overrides adapter config per leaf' => [
-        ['adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 'base', 'lazy' => TRUE]]], 'bindings' => ['public' => ['adapter' => 'main', 'config' => ['root' => 'override']]]],
+      'unbound scheme resolves NULL' => [
         [],
-        'public',
-        ['plugin' => 'local', 'config' => ['root' => 'override', 'lazy' => TRUE], 'publicly_accessible' => TRUE],
-      ],
-      'disabled settings binding resolves core-native even over entity binding' => [
-        ['adapters' => ['main' => $local_def], 'bindings' => ['public' => ['adapter' => 'main', 'disabled' => TRUE]]],
-        ['adapters' => ['main' => $local_def], 'bindings' => ['public' => ['adapter' => 'main']]],
+        [],
         'public',
         NULL,
       ],
-      'disabled entity binding resolves core-native when settings has no binding' => [
+      'entity-only binding resolves the entity definition' => [
         [],
-        ['adapters' => ['main' => $local_def], 'bindings' => ['private' => ['adapter' => 'main', 'disabled' => TRUE]]],
+        $settings_main,
+        'public',
+        [
+          'plugin' => 'local',
+          'config' => ['root' => 'sites/default/files'],
+          'publicly_accessible' => TRUE,
+        ],
+      ],
+      'settings-only scheme is valid' => [
+        [
+          'adapters' => ['main' => $local_def],
+          'bindings' => ['backup' => ['adapter' => 'main']],
+        ],
+        [],
+        'backup',
+        [
+          'plugin' => 'local',
+          'config' => ['root' => 'sites/default/files'],
+          'publicly_accessible' => FALSE,
+        ],
+      ],
+      'settings binding replaces same-scheme entity binding' => [
+        [
+          'adapters' => [
+            'main' => [
+              'plugin' => 'local',
+              'config' => ['root' => 'settings-root'],
+            ],
+          ],
+          'bindings' => ['public' => ['adapter' => 'main']],
+        ],
+        [
+          'adapters' => [
+            'other' => [
+              'plugin' => 'local',
+              'config' => ['root' => 'entity-root'],
+            ],
+          ],
+          'bindings' => ['public' => ['adapter' => 'other']],
+        ],
+        'public',
+        [
+          'plugin' => 'local',
+          'config' => ['root' => 'settings-root'],
+          'publicly_accessible' => TRUE,
+        ],
+      ],
+      'adapter definitions deep-merge per leaf, settings wins' => [
+        [
+          'adapters' => [
+            'main' => [
+              'plugin' => 'local',
+              'config' => ['root' => 'from-settings', 'keep' => 'settings'],
+            ],
+          ],
+          'bindings' => ['public' => ['adapter' => 'main']],
+        ],
+        [
+          'adapters' => [
+            'main' => [
+              'plugin' => 'local',
+              'config' => ['root' => 'from-entity', 'entity_only' => TRUE],
+            ],
+          ],
+          'bindings' => [],
+        ],
+        'public',
+        [
+          'plugin' => 'local',
+          'config' => [
+            'root' => 'from-settings',
+            'entity_only' => TRUE,
+            'keep' => 'settings',
+          ],
+          'publicly_accessible' => TRUE,
+        ],
+      ],
+      'binding config overrides adapter config per leaf' => [
+        [
+          'adapters' => [
+            'main' => [
+              'plugin' => 'local',
+              'config' => ['root' => 'base', 'lazy' => TRUE],
+            ],
+          ],
+          'bindings' => [
+            'public' => [
+              'adapter' => 'main',
+              'config' => ['root' => 'override'],
+            ],
+          ],
+        ],
+        [],
+        'public',
+        [
+          'plugin' => 'local',
+          'config' => ['root' => 'override', 'lazy' => TRUE],
+          'publicly_accessible' => TRUE,
+        ],
+      ],
+      'disabled settings binding resolves core-native over entity binding' => [
+        [
+          'adapters' => ['main' => $local_def],
+          'bindings' => [
+            'public' => ['adapter' => 'main', 'disabled' => TRUE],
+          ],
+        ],
+        $settings_main,
+        'public',
+        NULL,
+      ],
+      'disabled entity binding resolves core-native with no settings binding' => [
+        [],
+        [
+          'adapters' => ['main' => $local_def],
+          'bindings' => [
+            'private' => ['adapter' => 'main', 'disabled' => TRUE],
+          ],
+        ],
         'private',
         NULL,
       ],
-      'D8: entity binding replaces a core scheme when settings does not pin it' => [
+      'D8 entity binding replaces a core scheme when settings does not pin it' => [
         [],
-        ['adapters' => ['cdn' => ['plugin' => 's3', 'config' => ['bucket' => 'x']]], 'bindings' => ['public' => ['adapter' => 'cdn']]],
+        [
+          'adapters' => [
+            'cdn' => ['plugin' => 's3', 'config' => ['bucket' => 'x']],
+          ],
+          'bindings' => ['public' => ['adapter' => 'cdn']],
+        ],
         'public',
-        ['plugin' => 's3', 'config' => ['bucket' => 'x'], 'publicly_accessible' => TRUE],
+        [
+          'plugin' => 's3',
+          'config' => ['bucket' => 'x'],
+          'publicly_accessible' => TRUE,
+        ],
       ],
     ];
   }
@@ -164,7 +279,11 @@ final class BindingResolverPrecedenceTest extends TestCase {
    */
   public function testUnknownPluginFailsAtResolutionOfTheTouchedScheme(): void {
     $this->expectException(UnknownAdapterPluginException::class);
-    $this->resolver(['adapters' => ['main' => ['plugin' => 'no_such_pkg']], 'bindings' => ['public' => ['adapter' => 'main']]], [])->resolve('public');
+    $layer = [
+      'adapters' => ['main' => ['plugin' => 'no_such_pkg']],
+      'bindings' => ['public' => ['adapter' => 'main']],
+    ];
+    $this->resolver($layer, [])->resolve('public');
   }
 
   /**
