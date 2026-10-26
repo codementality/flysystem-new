@@ -9,6 +9,7 @@ use Drupal\flysystem\Exception\InvalidSchemeNameException;
 use Drupal\flysystem\Exception\InvalidSettingsStructureException;
 use Drupal\flysystem\Exception\PublicRootOutsideWebrootException;
 use Drupal\flysystem\Exception\UnknownAdapterPluginException;
+use Drupal\flysystem\Util\LexicalPath;
 
 /**
  * Validates the settings.php flysystem layer ($settings['flysystem']).
@@ -269,24 +270,7 @@ final class SettingsValidator {
    *   The resolved absolute root path.
    */
   private function resolveRoot(string $root): string {
-    $anchored = str_starts_with($root, '/') ? $root : $this->appRoot . '/' . $root;
-    $segments = [];
-    foreach (explode('/', $anchored) as $segment) {
-      if ($segment === '' || $segment === '.') {
-        continue;
-      }
-      if ($segment === '..') {
-        if ($segments && end($segments) !== '..') {
-          array_pop($segments);
-        }
-        else {
-          $segments[] = '..';
-        }
-        continue;
-      }
-      $segments[] = $segment;
-    }
-    return '/' . implode('/', $segments);
+    return LexicalPath::resolve($root, $this->appRoot);
   }
 
   /**
