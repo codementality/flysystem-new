@@ -72,16 +72,7 @@ final class FlysystemAdapterManagerTest extends TestCase {
     $cache_backend->method('get')->willReturn(FALSE);
     $namespaces = new \ArrayObject();
     $manager = new FlysystemAdapterManager($namespaces, $cache_backend, $module_handler);
-    $discovery = new class ($definitions) implements DiscoveryInterface {
-
-      public function __construct(private array $definitions) {
-      }
-
-      public function getDefinitions() {
-        return $this->definitions;
-      }
-
-    };
+    $discovery = $this->discoveryStub($definitions);
     $reflection = new \ReflectionObject($manager);
     while ($reflection && !$reflection->hasProperty('discovery')) {
       $reflection = $reflection->getParentClass();
@@ -90,6 +81,42 @@ final class FlysystemAdapterManagerTest extends TestCase {
     $property->setAccessible(TRUE);
     $property->setValue($manager, $discovery);
     return $manager;
+  }
+
+  /**
+   * A minimal array-backed discovery, the shape a manager accepts.
+   *
+   * @param array<string, array<string, mixed>> $definitions
+   *   Definitions keyed by plugin id.
+   *
+   * @return \Drupal\Component\Plugin\Discovery\DiscoveryInterface
+   *   The stub discovery.
+   */
+  private function discoveryStub(array $definitions): DiscoveryInterface {
+    return new class ($definitions) implements DiscoveryInterface {
+
+      public function __construct(private array $definitions) {
+      }
+
+      public function getDefinitions() {
+        return $this->definitions;
+      }
+
+      public function getDefinition($plugin_id, $return_empty = FALSE) {
+        if (isset($this->definitions[$plugin_id])) {
+          return $this->definitions[$plugin_id];
+        }
+        if ($return_empty) {
+          return NULL;
+        }
+        throw new \Drupal\Component\Plugin\Exception\PluginNotFoundException($plugin_id);
+      }
+
+      public function hasDefinition($plugin_id) {
+        return isset($this->definitions[$plugin_id]);
+      }
+
+    };
   }
 
   /**
@@ -176,16 +203,7 @@ final class FlysystemAdapterManagerTest extends TestCase {
     $cache_backend = $this->createMock(CacheBackendInterface::class);
     $cache_backend->method('get')->willReturn(FALSE);
     $manager = new FlysystemAdapterManager(new \ArrayObject(), $cache_backend, $module_handler);
-    $discovery = new class ($this->fixtureDefinitions()) implements DiscoveryInterface {
-
-      public function __construct(private array $definitions) {
-      }
-
-      public function getDefinitions() {
-        return $this->definitions;
-      }
-
-    };
+    $discovery = $this->discoveryStub($definitions);
     $reflection = new \ReflectionObject($manager);
     while ($reflection && !$reflection->hasProperty('discovery')) {
       $reflection = $reflection->getParentClass();
