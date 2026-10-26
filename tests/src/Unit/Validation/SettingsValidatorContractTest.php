@@ -116,6 +116,7 @@ final class SettingsValidatorContractTest extends TestCase {
       'temporary' => ['temporary'],
       'custom with digits' => ['backup2'],
       'dashes and underscores' => ['my_scheme-2'],
+      'uppercase' => ['Public'],
     ];
   }
 
@@ -136,7 +137,6 @@ final class SettingsValidatorContractTest extends TestCase {
   public static function invalidSchemeProvider(): array {
     return [
       'empty' => [''],
-      'uppercase' => ['Public'],
       'space' => ['has space'],
       'colon' => ['co:lon'],
       'dot' => ['a.b'],
