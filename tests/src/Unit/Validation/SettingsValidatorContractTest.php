@@ -25,10 +25,14 @@ use PHPUnit\Framework\TestCase;
  * container build or install). A full-layer sweep exists separately for
  * the verification API (M1-11).
  *
- * The scheme pattern mirrors core's own scheme recognition —
+ * Scheme grammar is the intersection of the two real grammars a bound
+ * scheme must survive, so "anything bindable is usable" in both
+ * directions: PHP's stream_wrapper_register() rejects underscores
+ * outright (verified live: "Invalid protocol scheme specified"), while
+ * accepting letters, digits, '-', '.', '+'; core's own scheme parser —
  * preg_match('/^([\w\-]+):\/\//', ...) in
  * web/core/lib/Drupal/Core/StreamWrapper/StreamWrapperManager.php:269-276
- * — so anything registerable is bindable (ground rule §1.1).
+ * — cannot parse '.' or '+'. What both accept: ^[A-Za-z0-9-]+$.
  *
  * The local/remote question is asked through an injectable predicate
  * (plugin id => TRUE local / FALSE remote / NULL unknown) rather than
@@ -90,7 +94,7 @@ final class SettingsValidatorContractTest extends TestCase {
    * Verifies the documented name patterns are the validator's constants.
    */
   public function testNamePatternsAreTheDocumentedVocabulary(): void {
-    self::assertSame('/^[A-Za-z0-9_-]+$/', SettingsValidator::SCHEME_PATTERN, 'Scheme grammar must equal core registerable grammar (§1.1).');
+    self::assertSame('/^[A-Za-z0-9-]+$/', SettingsValidator::SCHEME_PATTERN, 'Scheme grammar must be the intersection of PHP-registration and core-parsing grammars (see class docblock; owner review 2026-10-26).');
     self::assertSame('/^[a-z0-9_]+$/', SettingsValidator::ADAPTER_ID_PATTERN, 'Adapter id grammar is lowercase alphanumeric plus underscore.');
   }
 
@@ -117,7 +121,7 @@ final class SettingsValidatorContractTest extends TestCase {
       'private' => ['private'],
       'temporary' => ['temporary'],
       'custom with digits' => ['backup2'],
-      'dashes and underscores' => ['my_scheme-2'],
+      'dashes' => ['my-scheme-2'],
       'uppercase' => ['Public'],
     ];
   }
@@ -141,9 +145,11 @@ final class SettingsValidatorContractTest extends TestCase {
   public static function invalidSchemeProvider(): array {
     return [
       'empty' => [''],
+      'underscore' => ['my_scheme'],
       'space' => ['has space'],
       'colon' => ['co:lon'],
       'dot' => ['a.b'],
+      'plus' => ['up+er'],
       'path escape' => ['../x'],
     ];
   }
