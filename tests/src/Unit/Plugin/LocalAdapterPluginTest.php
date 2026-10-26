@@ -34,8 +34,18 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class LocalAdapterPluginTest extends TestCase {
 
+  /**
+   * Synthetic app root (webroot) all fixtures anchor against.
+   *
+   * @var string
+   */
   private string $appRoot = '';
 
+  /**
+   * A second directory standing in for an unrelated process CWD.
+   *
+   * @var string
+   */
   private string $otherCwd = '';
 
   /**
@@ -115,12 +125,13 @@ final class LocalAdapterPluginTest extends TestCase {
    * Verifies '..' in configured roots collapses lexically, no realpath.
    */
   public function testDotDotSegmentsCollapseLexically(): void {
-    $plugin = $this->plugin(['root' => 'sites/default/../private']);
+    // None of sites/default exist on disk — a realpath() here would fail
+    // or move the root; lexical collapse must land exactly one level up.
+    $plugin = $this->plugin(['root' => 'sites/default/../../private']);
     $operator = $plugin->buildFilesystem();
     $operator->write('secret.txt', 'x');
-    self::assertFileExists($this->appRoot . '/sites/default/../private/secret.txt');
-    self::assertFileExists($this->appRoot . '/private/secret.txt');
-    self::assertFileDoesNotExist($this->appRoot . '/sites/private/secret.txt', 'Lexical collapse must apply to the root itself, not only to targets.');
+    self::assertFileExists($this->appRoot . '/private/secret.txt', 'Lexical collapse of the configured root must place the root one level up, with the intermediate path never needing to exist.');
+    self::assertDirectoryDoesNotExist($this->appRoot . '/sites', 'Collapse must happen before any path component is touched on disk.');
   }
 
   /**
@@ -151,7 +162,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * Verifies the private-files convention: '../' roots outside webroot work.
    */
   public function testPrivateConventionRelativeEscapeRoundTrip(): void {
-    $plugin = $this->plugin(['root' => '/../private-outside']);
+    $plugin = $this->plugin(['root' => '../private-outside']);
     $operator = $plugin->buildFilesystem();
     $operator->write('pf.txt', 'private lives outside the webroot by convention');
     self::assertSame('private lives outside the webroot by convention', $operator->read('pf.txt'));
