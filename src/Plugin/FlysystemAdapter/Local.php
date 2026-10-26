@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\flysystem\Plugin\FlysystemAdapter;
 
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\Site\Settings;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\flysystem\Attribute\FlysystemAdapter;
 use Drupal\flysystem\Plugin\FlysystemAdapterBase;
@@ -14,6 +15,7 @@ use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
+use League\Flysystem\Visibility;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -26,6 +28,18 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * is explicitly disabled (LocalFilesystemAdapter constructor creates the
  * root unless lazyRootCreation is set; core never creates storage at
  * config time either). The first write materializes the root.
+ *
+ * Permission posture (owner ruling on PR #17, backward compatibility with
+ * flysystem 2.x): users are NOT prompted for unix modes. Defaults come
+ * from Drupal's own long-standing settings — file_chmod_file (0664) and
+ * file_chmod_directory (0775) — with private counterparts 0600/0700, and
+ * a Filesystem-level default visibility of PUBLIC so writes are chmodded
+ * to the Drupal mode (library default converter mode 0644 is not used).
+ * Per-binding overrides: 'unix_visibility' (league v3 map shape), its
+ * 2.x-era alias 'permissions', and 'visibility'/'directory_visibility'
+ * operation defaults. 'link_handling' => 'skip' opts into skipping
+ * symlinked entries in listings; the default disallows them (library
+ * default preserved).
  *
  * A missing 'root' at write time surfaces the library's typed
  * UnableToWriteFile with path context; a leading '../' in a target throws
@@ -87,16 +101,84 @@ class Local extends FlysystemAdapterBase implements LocalStorageInterface, Conta
     }
     $resolved = LexicalPath::resolve($root, $this->appRoot);
 
-    $visibility = NULL;
-    if (isset($config['unix_visibility']) && is_array($config['unix_visibility'])) {
-      $visibility = PortableVisibilityConverter::fromArray($config['unix_visibility']);
-    }
+    return new Filesystem(
+      new LocalFilesystemAdapter(
+        $resolved,
+        $this->visibilityConverter($config),
+        \LOCK_EX,
+        $this->linkHandling($config),
+        lazyRootCreation: TRUE,
+      ),
+      $this->defaultOperationConfig($config),
+    );
+  }
 
-    return new Filesystem(new LocalFilesystemAdapter(
-      $resolved,
-      $visibility,
-      lazyRootCreation: TRUE,
-    ));
+  /**
+   * Builds the file-permission converter: explicit config, else Drupal modes.
+   *
+   * @param array $config
+   *   The merged adapter config.
+   *
+   * @return \League\Flysystem\UnixVisibility\PortableVisibilityConverter
+   *   The converter to hand the library.
+   */
+  protected function visibilityConverter(array $config): PortableVisibilityConverter {
+    $map = $config['unix_visibility'] ?? $config['permissions'] ?? NULL;
+    if (!is_array($map)) {
+      // Defaults are Drupal's own settings values, read the same way core
+      // reads them (pre-container), so a site carries its long-standing
+      // umask-independent expectations without configuring per scheme.
+      $map = [
+        'file' => [
+          'public' => (int) Settings::get('file_chmod_file', 0664),
+          'private' => 0600,
+        ],
+        'dir' => [
+          'public' => (int) Settings::get('file_chmod_directory', 0775),
+          'private' => 0700,
+        ],
+      ];
+    }
+    // Implicitly created directories take the public mode, matching
+    // core's mkdir behavior; league's fromArray would otherwise default
+    // directories to PRIVATE.
+    return PortableVisibilityConverter::fromArray($map, Visibility::PUBLIC);
+  }
+
+  /**
+   * Maps 'link_handling' config to the library's link-handling constants.
+   *
+   * @param array $config
+   *   The merged adapter config.
+   *
+   * @return int
+   *   SKIP_LINKS when configured 'skip', otherwise DISALLOW_LINKS.
+   */
+  protected function linkHandling(array $config): int {
+    return ($config['link_handling'] ?? 'disallow') === 'skip'
+      ? LocalFilesystemAdapter::SKIP_LINKS
+      : LocalFilesystemAdapter::DISALLOW_LINKS;
+  }
+
+  /**
+   * Operator-level defaults merged into every operation's config.
+   *
+   * Default visibility PUBLIC is what makes the file mode actually apply
+   * on writes (the library only chmods when visibility is present).
+   *
+   * @param array $config
+   *   The merged adapter config.
+   *
+   * @return array<string, string>
+   *   Default operation config.
+   */
+  protected function defaultOperationConfig(array $config): array {
+    $visibility = $config['visibility'] ?? Visibility::PUBLIC;
+    $defaults = ['visibility' => $visibility];
+    if (isset($config['directory_visibility'])) {
+      $defaults['directory_visibility'] = (string) $config['directory_visibility'];
+    }
+    return $defaults;
   }
 
   /**
