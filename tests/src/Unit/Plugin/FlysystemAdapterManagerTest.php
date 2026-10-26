@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\Plugin;
 
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
 use Drupal\flysystem\Plugin\FlysystemAdapterBase;
 use Drupal\Core\Cache\CacheBackendInterface;
@@ -16,7 +17,6 @@ use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -37,6 +37,9 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class FlysystemAdapterManagerTest extends TestCase {
 
+  /**
+   * Per-test temp root used by the fixture's filesystem.
+   */
   private string $tempRoot = '';
 
   /**
@@ -72,7 +75,7 @@ final class FlysystemAdapterManagerTest extends TestCase {
     $cache_backend->method('get')->willReturn(FALSE);
     $namespaces = new \ArrayObject();
     $manager = new FlysystemAdapterManager($namespaces, $cache_backend, $module_handler);
-    $discovery = $this->discoveryStub($definitions);
+    $discovery = $this->discoveryStub($this->fixtureDefinitions());
     $reflection = new \ReflectionObject($manager);
     while ($reflection && !$reflection->hasProperty('discovery')) {
       $reflection = $reflection->getParentClass();
@@ -98,10 +101,27 @@ final class FlysystemAdapterManagerTest extends TestCase {
       public function __construct(private array $definitions) {
       }
 
+      /**
+       * Returns the stub definitions.
+       *
+       * @return array<string, array<string, mixed>>
+       *   Definitions keyed by plugin id.
+       */
       public function getDefinitions() {
         return $this->definitions;
       }
 
+      /**
+       * Returns one definition by id.
+       *
+       * @param string $plugin_id
+       *   The plugin id.
+       * @param bool $return_empty
+       *   TRUE to return NULL instead of throwing for unknown ids.
+       *
+       * @return array<string, mixed>|null
+       *   The definition, or NULL when allowed to be empty.
+       */
       public function getDefinition($plugin_id, $return_empty = FALSE) {
         if (isset($this->definitions[$plugin_id])) {
           return $this->definitions[$plugin_id];
@@ -109,9 +129,18 @@ final class FlysystemAdapterManagerTest extends TestCase {
         if ($return_empty) {
           return NULL;
         }
-        throw new \Drupal\Component\Plugin\Exception\PluginNotFoundException($plugin_id);
+        throw new PluginNotFoundException($plugin_id);
       }
 
+      /**
+       * Whether the stub holds a definition for the id.
+       *
+       * @param string $plugin_id
+       *   The plugin id.
+       *
+       * @return bool
+       *   TRUE if the definition exists.
+       */
       public function hasDefinition($plugin_id) {
         return isset($this->definitions[$plugin_id]);
       }
@@ -123,6 +152,7 @@ final class FlysystemAdapterManagerTest extends TestCase {
    * A discovery-ready definition for the fixture plugin.
    *
    * @return array<string, array<string, mixed>>
+   *   Discovery-ready definitions for the fixture plugin.
    */
   private function fixtureDefinitions(): array {
     return [
@@ -186,24 +216,25 @@ final class FlysystemAdapterManagerTest extends TestCase {
   }
 
   /**
-   * Verifies the manager fires the standard alteration hook with the
-   * discovered definitions. (Definition mutation itself is core's
-   * ModuleHandler-by-reference behavior; the contract on this module is
-   * that the named hook fires with the definitions array.)
+   * Verifies the manager fires the standard alteration hook.
+   *
+   * Definition mutation itself is core's ModuleHandler-by-reference
+   * behavior; the contract on this module is that the named hook fires
+   * with the discovered definitions array.
    */
   public function testAlterationHookFiresWithDefinitions(): void {
     $module_handler = $this->createMock(ModuleHandlerInterface::class);
     $module_handler
       ->expects(self::once())
-      ->method('invokeAll')
+      ->method('alter')
       ->with(
         'flysystem_flysystem_adapter_info',
-        self::callback(static fn (array $args): bool => is_array($args[0] ?? NULL) && array_key_exists('fixture', $args[0])),
+        self::callback(static fn ($definitions): bool => is_array($definitions) && array_key_exists('fixture', $definitions)),
       );
     $cache_backend = $this->createMock(CacheBackendInterface::class);
     $cache_backend->method('get')->willReturn(FALSE);
     $manager = new FlysystemAdapterManager(new \ArrayObject(), $cache_backend, $module_handler);
-    $discovery = $this->discoveryStub($definitions);
+    $discovery = $this->discoveryStub($this->fixtureDefinitions());
     $reflection = new \ReflectionObject($manager);
     while ($reflection && !$reflection->hasProperty('discovery')) {
       $reflection = $reflection->getParentClass();
@@ -218,9 +249,9 @@ final class FlysystemAdapterManagerTest extends TestCase {
 }
 
 /**
- * A fixture adapter plugin declared exactly as an adapter module would ship
- * one: attribute-annotated class implementing the plugin interface. Its
- * presence via discovery alone proves "new backend = new plugin class".
+ * A fixture adapter plugin, declared as an adapter module would ship one.
+ *
+ * Its presence via discovery alone proves "new backend = new plugin class".
  */
 final class FixtureTestAdapter extends FlysystemAdapterBase {
 
