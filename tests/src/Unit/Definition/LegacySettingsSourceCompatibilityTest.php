@@ -42,9 +42,28 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
    * Verifies a legacy layer presents through the modern adapter layer.
    */
   public function testLegacyDriversBecomeAdapterDefinitions(): void {
-    new Settings(['flysystem' => [
-      'local-example' => [
-        'driver' => 'local',
+    new Settings([
+      'flysystem' => [
+        'local-example' => [
+          'driver' => 'local',
+          'config' => [
+            'root' => 'sites/default/files/flysystem',
+            'public' => TRUE,
+            'permissions' => [
+              'file' => ['public' => 0644, 'private' => 0600],
+              'dir' => ['public' => 0755, 'private' => 0700],
+            ],
+            'name' => 'Custom name',
+            'description' => 'Custom description',
+          ],
+        ],
+      ],
+    ]);
+    $source = new SettingsSource();
+    $adapters = $source->getAdapterDefinitions();
+    self::assertSame([
+      'local_example' => [
+        'plugin' => 'local',
         'config' => [
           'root' => 'sites/default/files/flysystem',
           'public' => TRUE,
@@ -56,32 +75,19 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
           'description' => 'Custom description',
         ],
       ],
-    ]]);
-    $source = new SettingsSource();
-    $adapters = $source->getAdapterDefinitions();
-    self::assertSame(['local_example' => [
-      'plugin' => 'local',
-      'config' => [
-        'root' => 'sites/default/files/flysystem',
-        'public' => TRUE,
-        'permissions' => [
-          'file' => ['public' => 0644, 'private' => 0600],
-          'dir' => ['public' => 0755, 'private' => 0700],
-        ],
-        'name' => 'Custom name',
-        'description' => 'Custom description',
-      ],
-    ]], $adapters, 'The driver becomes the plugin; the config, including unrecognized 2.x keys, passes through unchanged — inert keys must not break existing sites.');
+    ], $adapters, 'The driver becomes the plugin; the config, including unrecognized 2.x keys, passes through unchanged — inert keys must not break existing sites.');
   }
 
   /**
    * Verifies a legacy layer presents through the modern binding layer.
    */
   public function testLegacySchemesBecomeBindings(): void {
-    new Settings(['flysystem' => [
-      'local-example' => ['driver' => 'local', 'config' => ['root' => 'files', 'public' => TRUE]],
-      'sftpbackup' => ['driver' => 'sftp', 'config' => ['root' => '/srv/backup']],
-    ]]);
+    new Settings([
+      'flysystem' => [
+        'local-example' => ['driver' => 'local', 'config' => ['root' => 'files', 'public' => TRUE]],
+        'sftpbackup' => ['driver' => 'sftp', 'config' => ['root' => '/srv/backup']],
+      ],
+    ]);
     $source = new SettingsSource();
     $bindings = $source->getSchemeBindings();
     self::assertSame([
@@ -96,11 +102,13 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
   public function testSanitizedIdsAreDeterministicAndCollisionFree(): void {
     // Sorted scheme order is a+b, a-b, a_b ('+' < '-' < '_'), so the bare
     // sanitized id belongs to a+b and later schemes take the suffixes.
-    new Settings(['flysystem' => [
-      'a-b' => ['driver' => 'local', 'config' => ['root' => 'from-hyphen']],
-      'a_b' => ['driver' => 'local', 'config' => ['root' => 'from-underscore']],
-      'a+b' => ['driver' => 'local', 'config' => ['root' => 'from-plus']],
-    ]]);
+    new Settings([
+      'flysystem' => [
+        'a-b' => ['driver' => 'local', 'config' => ['root' => 'from-hyphen']],
+        'a_b' => ['driver' => 'local', 'config' => ['root' => 'from-underscore']],
+        'a+b' => ['driver' => 'local', 'config' => ['root' => 'from-plus']],
+      ],
+    ]);
     $source = new SettingsSource();
     self::assertSame([
       'a_b' => ['plugin' => 'local', 'config' => ['root' => 'from-plus']],
@@ -150,6 +158,8 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
   }
 
   /**
+   * Provides modern-shaped and empty layers.
+   *
    * @return array<string, array{0: array}>
    *   Modern-shaped and empty layers.
    */
@@ -158,10 +168,12 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
       'modern with adapters key' => [[
         'adapters' => ['x' => ['plugin' => 'local']],
         'bindings' => ['public' => ['adapter' => 'x']],
-      ]],
+      ],
+      ],
       'modern with bindings key only' => [[
         'bindings' => [],
-      ]],
+      ],
+      ],
       'empty' => [[]],
     ];
   }
@@ -170,10 +182,12 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
    * Verifies normalization keeps the public flag type-honest.
    */
   public function testPublicFlagOnlyMapsWhenBoolean(): void {
-    new Settings(['flysystem' => [
-      'one' => ['driver' => 'local', 'config' => ['root' => 'r', 'public' => FALSE]],
-      'two' => ['driver' => 'local', 'config' => ['root' => 'r', 'public' => 'yes']],
-    ]]);
+    new Settings([
+      'flysystem' => [
+        'one' => ['driver' => 'local', 'config' => ['root' => 'r', 'public' => FALSE]],
+        'two' => ['driver' => 'local', 'config' => ['root' => 'r', 'public' => 'yes']],
+      ],
+    ]);
     $bindings = (new SettingsSource())->getSchemeBindings();
     self::assertArrayHasKey('publicly_accessible', $bindings['one']);
     self::assertFalse($bindings['one']['publicly_accessible']);
