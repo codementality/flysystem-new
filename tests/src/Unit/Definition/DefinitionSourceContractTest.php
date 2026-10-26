@@ -145,6 +145,16 @@ final class DefinitionSourceContractTest extends TestCase {
   }
 
   /**
+   * Verifies a non-array flysystem layer reads as empty, never as a crash.
+   */
+  public function testNonArrayFlysystemLayerReadsAsEmpty(): void {
+    new Settings(['flysystem' => 'oops']);
+    $source = new SettingsSource();
+    self::assertSame([], $source->getAdapterDefinitions());
+    self::assertSame([], $source->getSchemeBindings());
+  }
+
+  /**
    * Data provider: the sample layer, an empty layer, a partial layer.
    *
    * @return array<string, array{0: array<string, mixed>}>
