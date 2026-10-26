@@ -70,7 +70,11 @@ final class DefinitionChecksumTest extends TestCase {
       ],
       'plugin' => 'local',
     ];
-    self::assertSame(DefinitionChecksum::calculate($one), DefinitionChecksum::calculate($reordered), 'A merged definition assembled from a different source order is the same definition.');
+    self::assertSame(
+      DefinitionChecksum::calculate($one),
+      DefinitionChecksum::calculate($reordered),
+      'A merged definition assembled from a different source order is the same definition.',
+    );
   }
 
   /**
@@ -112,7 +116,9 @@ final class DefinitionChecksumTest extends TestCase {
   }
 
   /**
-   * Verifies renaming an env reference keys differently (it is a new reference).
+   * Verifies renaming an env reference keys differently.
+   *
+   * A renamed reference is a different reference.
    */
   public function testEnvReferenceRenamingProducesDifferentKey(): void {
     $base = ['plugin' => 's3', 'config' => ['bucket' => 'cdn']];
@@ -127,7 +133,11 @@ final class DefinitionChecksumTest extends TestCase {
   public function testListOrderIsSignificant(): void {
     $one = ['plugin' => 'local', 'config' => ['allowed' => ['a', 'b']]];
     $two = ['plugin' => 'local', 'config' => ['allowed' => ['b', 'a']]];
-    self::assertNotSame(DefinitionChecksum::calculate($one), DefinitionChecksum::calculate($two), 'Lists carry meaning in their order; only named mappings are normalized.');
+    self::assertNotSame(
+      DefinitionChecksum::calculate($one),
+      DefinitionChecksum::calculate($two),
+      'Lists carry meaning in their order; only named mappings are normalized.',
+    );
   }
 
   /**
