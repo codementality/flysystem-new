@@ -1,0 +1,19 @@
+{
+    "name": "drupal/flysystem",
+    "description": "Flysystem-backed storage factory foundation for Drupal file schemes.",
+    "type": "drupal-module",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://github.com/codementality/flysystem-new",
+    "require": {
+        "league/flysystem": "^3",
+        "league/flysystem-local": "^3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Drupal\\flysystem\\": "src/"
+        }
+    },
+    "extra": {
+        "_comment": "Package name is a working identifier only; final naming/publication is an M8 decision (Milestone 1 plan, Prerequisites row)."
+    }
+}
