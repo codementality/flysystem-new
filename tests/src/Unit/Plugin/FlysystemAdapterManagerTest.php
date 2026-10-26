@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Drupal\flysystem\Tests\Unit\Plugin;
 
 use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
-use Drupal\Component\Plugin\PluginBase;
+use Drupal\flysystem\Plugin\FlysystemAdapterBase;
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\flysystem\Exception\FlysystemPluginNotFoundException;
@@ -204,7 +204,7 @@ final class FlysystemAdapterManagerTest extends TestCase {
  * one: attribute-annotated class implementing the plugin interface. Its
  * presence via discovery alone proves "new backend = new plugin class".
  */
-final class FixtureTestAdapter extends PluginBase implements FlysystemAdapterInterface {
+final class FixtureTestAdapter extends FlysystemAdapterBase {
 
   /**
    * {@inheritdoc}
