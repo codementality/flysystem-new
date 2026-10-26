@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\Plugin;
 
+use Drupal\Core\Site\Settings;
 use Drupal\flysystem\Plugin\FlysystemAdapterInterface;
 use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
 use Drupal\flysystem\Plugin\LocalStorageInterface;
@@ -64,6 +65,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * {@inheritdoc}
    */
   protected function tearDown(): void {
+    new Settings([]);
     chdir(sys_get_temp_dir());
     exec('rm -rf ' . escapeshellarg(dirname($this->appRoot)));
     parent::tearDown();
@@ -220,6 +222,97 @@ final class LocalAdapterPluginTest extends TestCase {
       $paths[] = $item->path();
     }
     self::assertSame(['a.txt'], $paths);
+  }
+
+  /**
+   * Verifies default writes land with the Drupal file mode, not league's.
+   */
+  public function testDefaultFileModeIsDrupalFileChmod(): void {
+    new Settings([]);
+    $plugin = $this->plugin(['root' => 'files']);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('mode.txt', 'x');
+    $mode = fileperms($this->appRoot . '/files/mode.txt') & 0777;
+    self::assertSame(0664, $mode, 'Unconfigured writes must carry the Drupal default file mode (0664), not league\'s 0644 — 2.x sites keep their permission expectations.');
+  }
+
+  /**
+   * Verifies the file_chmod_file setting drives the public write mode.
+   */
+  public function testDrupalChmodSettingsAreRespected(): void {
+    new Settings(['file_chmod_file' => 0660]);
+    $plugin = $this->plugin(['root' => 'files']);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('custom.txt', 'x');
+    $mode = fileperms($this->appRoot . '/files/custom.txt') & 0777;
+    self::assertSame(0660, $mode, 'The site file_chmod_file setting must drive the public-write mode, exactly as 2.x read it.');
+  }
+
+  /**
+   * Verifies explicit per-binding visibility config overrides the defaults.
+   */
+  public function testUnixVisibilityConfigOverridesDrupalDefaults(): void {
+    new Settings([]);
+    $plugin = $this->plugin([
+      'root' => 'files',
+      'unix_visibility' => [
+        'file' => ['public' => 0640, 'private' => 0400],
+        'dir' => ['public' => 0750, 'private' => 0700],
+      ],
+    ]);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('override.txt', 'x');
+    $mode = fileperms($this->appRoot . '/files/override.txt') & 0777;
+    self::assertSame(0640, $mode);
+  }
+
+  /**
+   * Verifies the 2.x 'permissions' config shape is accepted as an alias.
+   */
+  public function testLegacyPermissionsMapIsAccepted(): void {
+    new Settings([]);
+    $plugin = $this->plugin([
+      'root' => 'files',
+      'permissions' => [
+        'file' => ['public' => 0666, 'private' => 0600],
+        'dir' => ['public' => 0777, 'private' => 0700],
+      ],
+    ]);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('legacy.txt', 'x');
+    $mode = fileperms($this->appRoot . '/files/legacy.txt') & 0777;
+    self::assertSame(0666, $mode, 'A 2.x-style permissions map must work unchanged — the plugin-scope half of the backward-compatibility request on this PR.');
+  }
+
+  /**
+   * Verifies link handling: disallow (default) versus skip configuration.
+   */
+  public function testLinkHandlingSkipVersusDisallow(): void {
+    new Settings([]);
+    $files = $this->appRoot . '/files';
+    mkdir($files, 0777, TRUE);
+    file_put_contents($this->appRoot . '/target.txt', 'real');
+    symlink($this->appRoot . '/target.txt', $files . '/link.txt');
+
+    $disallow = $this->plugin(['root' => 'files'])->buildFilesystem();
+    $threw = FALSE;
+    try {
+      foreach ($disallow->listContents('', FALSE) as $item) {
+        // Iteration itself throws when the symlink is yielded under
+        // DISALLOW_LINKS.
+      }
+    }
+    catch (\Throwable $e) {
+      $threw = TRUE;
+    }
+    self::assertTrue($threw, 'Default posture disallows links: listing a symlinked entry must throw.');
+
+    $skip = $this->plugin(['root' => 'files', 'link_handling' => 'skip'])->buildFilesystem();
+    $seen = [];
+    foreach ($skip->listContents('', FALSE) as $item) {
+      $seen[] = $item->path();
+    }
+    self::assertNotContains('link.txt', $seen, 'link_handling: skip must omit symlinked entries from listings.');
   }
 
 }
