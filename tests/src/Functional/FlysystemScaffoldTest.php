@@ -9,14 +9,14 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Tests for M1-01 (Part 1): module scaffold outcome on a fresh site.
+ * Tests the module scaffold outcome on a fresh site.
  *
- * Outcome per the plan row: the module installs/enables/disables cleanly on
+ * The module installs/enables/disables cleanly on
  * a fresh site, and the cycle leaves the site byte-equivalent to core-native
  * behavior. Operationally this asserts: the extension toggles without error,
  * the registered stream wrapper set and the stream_wrapper_manager scheme
  * registry are IDENTICAL across the disable/re-enable cycle (the module must
- * register nothing — M1 scope guard), and the site still serves pages.
+ * register no stream wrappers at all), and the site still serves pages.
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]

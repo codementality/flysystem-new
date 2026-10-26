@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Functional test for M1-09 (Part 1): real discovery of the local plugin.
+ * Functional test: real container discovery of the local plugin.
  *
  * Proves the whole chain the unit tests cannot: the #[FlysystemAdapter]
  * attribute is discovered by the manager service through the normal

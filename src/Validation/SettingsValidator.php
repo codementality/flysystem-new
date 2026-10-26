@@ -14,21 +14,22 @@ use Drupal\flysystem\Util\LexicalPath;
 /**
  * Validates the settings.php flysystem layer ($settings['flysystem']).
  *
- * B4 lazy timing: validateScheme() touches one scheme and surfaces only
+ * Lazy timing: validateScheme() touches one scheme and surfaces only
  * that scheme's defects; broken bindings elsewhere never fire while an
  * unrelated scheme is checked. assertValidStructure() is the full sweep
- * for verification tooling (M1-11). Neither runs at container build.
+ * for verification tooling. Neither runs at container build.
  *
- * D9 containment: a publicly accessible binding backed by a local-mode
- * plugin must anchor its root inside the app root. Roots are anchored
- * against the app root and collapsed lexically — never realpath()-ed
- * (B2a: realpath would break not-yet-created roots and resolve symlinks
- * core leaves to the OS). Remote plugins are exempt: served by external
- * URL, they have no webroot concept.
+ * Webroot containment: a publicly accessible binding backed by a
+ * local-storage plugin must anchor its root inside the app root. Roots
+ * are anchored against the app root and collapsed lexically — never
+ * realpath()-ed (realpath would break not-yet-created roots and resolve
+ * symlinks the OS is supposed to see). Remote plugins are exempt: served
+ * by external URL, they have no webroot concept.
  *
  * Plugin locality enters through an injectable predicate (plugin id =>
- * TRUE local, FALSE remote, NULL unknown). The M1-02 plugin manager
- * bridges this to M1-03's RegistrationMode enum at wiring time; the
+ * TRUE local, FALSE remote, NULL unknown). The adapter plugin manager's
+ * discovery data supplies the answer at wiring time — a plugin declares
+ * local storage by implementing the local-storage feature interface; the
  * un-injected default recognizes 'local' only.
  */
 final class SettingsValidator {
@@ -55,7 +56,7 @@ final class SettingsValidator {
   public const PUBLIC_SCHEME = 'public';
 
   /**
-   * The app root (webroot) for anchoring and D9 containment.
+   * The app root (webroot) for anchoring and containment checks.
    */
   private readonly string $appRoot;
 
@@ -69,7 +70,7 @@ final class SettingsValidator {
    *
    * @param string $appRoot
    *   The app root (webroot), e.g. \Drupal::root() at wiring time. Used
-   *   for anchoring relative roots and as the D9 containment boundary.
+   *   for anchoring relative roots and as the containment boundary.
    *   Trailing separators are normalized away.
    * @param callable|null $isLocalMode
    *   (optional) Predicate mapping a plugin id to TRUE (local-mode),
@@ -87,7 +88,7 @@ final class SettingsValidator {
    * Validates everything the given scheme touches; nothing else.
    *
    * @param string $scheme
-   *   The scheme being resolved (M1-06 calls this on touch).
+   *   The scheme being resolved (the binding resolver calls this on touch).
    * @param array $layer
    *   The raw flysystem layer.
    *
@@ -100,7 +101,7 @@ final class SettingsValidator {
    * @throws \Drupal\flysystem\Exception\UnknownAdapterPluginException
    *   When the referenced plugin id is not a known adapter plugin.
    * @throws \Drupal\flysystem\Exception\PublicRootOutsideWebrootException
-   *   When a publicly accessible local root resolves outside the webroot (D9).
+   *   When a publicly accessible local root resolves outside the webroot.
    */
   public function validateScheme(string $scheme, array $layer): void {
     if (!preg_match(self::SCHEME_PATTERN, $scheme)) {
@@ -133,8 +134,8 @@ final class SettingsValidator {
     }
     $definition = $layer['adapters'][$adapterId] ?? NULL;
     if ($definition === NULL) {
-      // Binding to an undefined adapter is a resolution concern (M1-06),
-      // not a settings-shape violation.
+      // Binding to an undefined adapter is a resolution concern (the
+      // binding resolver), not a settings-shape violation.
       return;
     }
 
@@ -165,9 +166,9 @@ final class SettingsValidator {
   /**
    * Full-layer structural sweep: every section, entry, and name.
    *
-   * Does not run D9 containment (that is inherently per-scheme and lazy);
+   * Does not run containment (that is inherently per-scheme and lazy);
    * it answers "is this layer structurally sane everywhere" for the
-   * verification API (M1-11).
+   * verification API.
    *
    * @param array $layer
    *   The raw flysystem layer.
@@ -259,9 +260,9 @@ final class SettingsValidator {
   /**
    * Anchors a configured root against the app root and collapses segments.
    *
-   * Lexical only (B2a): no realpath(), no filesystem access, no side
-   * effects. Absolute roots pass through normalization unchanged apart
-   * from '..' collapsing.
+   * Lexical only: no realpath(), no filesystem access, no side effects.
+   * Absolute roots pass through normalization unchanged apart from '..'
+   * collapsing.
    *
    * @param string $root
    *   The configured root.
