@@ -159,7 +159,7 @@ final class SettingsValidatorContractTest extends TestCase {
    */
   public function testUnboundSchemeIsValid(): void {
     $validator = self::validator();
-    $validator->validateScheme('nobody_here', ['adapters' => [], 'bindings' => []]);
+    $validator->validateScheme('nobody-here', ['adapters' => [], 'bindings' => []]);
     $this->expectNotToPerformAssertions();
   }
 
@@ -303,17 +303,17 @@ final class SettingsValidatorContractTest extends TestCase {
    */
   #[DataProvider('containmentMatrixProvider')]
   public function testD9ContainmentMatrix(array $binding, array $adapters, ?string $expectedError): void {
-    $layer = ['adapters' => $adapters, 'bindings' => ['the_scheme' => $binding]];
-    // The scheme name is irrelevant to the matrix; use 'the_scheme' so no
+    $layer = ['adapters' => $adapters, 'bindings' => ['the-scheme' => $binding]];
+    // The scheme name is irrelevant to the matrix; use 'the-scheme' so no
     // default-public special-casing applies except where asserted.
     $validator = self::validator();
     if ($expectedError === NULL) {
-      $validator->validateScheme('the_scheme', $layer);
+      $validator->validateScheme('the-scheme', $layer);
       $this->expectNotToPerformAssertions();
       return;
     }
     $this->expectException($expectedError);
-    $validator->validateScheme('the_scheme', $layer);
+    $validator->validateScheme('the-scheme', $layer);
   }
 
   /**
