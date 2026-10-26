@@ -11,10 +11,11 @@ use Drupal\Core\Site\Settings;
  *
  * Uses the static Settings facade because this data is needed at build
  * time, before the container exists — the same pre-container pattern core
- * itself uses for wrapper configuration (PublicStream::basePath(),
- * evaluation §1.1). A missing or mistyped section reads as empty here;
- * precise structural complaints belong to the settings schema validator
- * (M1-05), which reads the raw layer, not this source.
+ * itself uses for wrapper configuration (for example
+ * \Drupal\Core\StreamWrapper\PublicStream::basePath()). A missing or
+ * mistyped section reads as empty here; precise structural complaints
+ * belong to the settings schema validator, which reads the raw layer,
+ * not this source.
  */
 final class SettingsSource implements AdapterDefinitionSourceInterface {
 

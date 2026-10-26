@@ -8,11 +8,11 @@ namespace Drupal\flysystem\Definition;
  * An array-backed definition source: the same layer shape, in memory.
  *
  * This class replaces a definition *source* for tests and programmatic
- * use — it is deliberately not the memory *adapter* (D10 keeps that
- * distinction sharp: the memory adapter replaces a backend, this replaces
- * a source). It exists so the resolver can prove D4/D8 source-agnosticism
- * against a second implementation today, and so M3's config-entity source
- * has a shipped behavioral reference to match. Section handling is
+ * use — deliberately not the memory *adapter*: one swaps where definitions
+ * come from, the other swaps the storage backend. It exists so the
+ * resolver can prove source-agnosticism against a second implementation,
+ * and so any future config-entity source has a shipped behavioral
+ * reference to match. Section handling is
  * identical to SettingsSource by design: any divergence here would be
  * source-specific behavior leaking below the resolver.
  */

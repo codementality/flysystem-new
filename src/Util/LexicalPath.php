@@ -7,9 +7,9 @@ namespace Drupal\flysystem\Util;
 /**
  * Lexical path anchoring shared by validation and the local adapter.
  *
- * Implements the ruling on relative roots (B2a): anchor against the app
- * root — never the process CWD — and collapse '.'/'..' segments purely
- * lexically. realpath() is deliberately not used anywhere: it would break
+ * Relative configuration roots anchor against the app root — never the
+ * process CWD — and '.'/'..' segments collapse purely lexically.
+ * realpath() is deliberately not used anywhere: it would break
  * not-yet-created roots and silently resolve symlinks the OS is supposed
  * to see. This class performs NO filesystem access of any kind.
  */

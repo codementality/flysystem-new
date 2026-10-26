@@ -14,22 +14,21 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for M1-09 (Part 1): the local adapter plugin.
+ * Tests the local adapter plugin: root handling and permission posture.
  *
- * The plugin is a backend's own answer to the plugin contract shipped by
- * issue #2: buildFilesystem() from an array, isAvailable() honestly.
+ * A backend answers for itself through the plugin contract:
  * Everything here is about the root-handling decisions the local backend
  * owns — anchoring relative roots to the app root (never the process
  * CWD), collapsing '..' lexically (never realpath(), which would break
  * not-yet-created roots and resolve symlinks the OS is supposed to see),
  * and creating nothing at construction time.
  *
- * Posture notes carried from the ruling record: leading '../' in a TARGET
- * throws through the operator (both postures — documented deviation, not
- * emulated escape); a PUBLIC/local root outside the webroot is refused by
- * the settings validator (#5), not by this plugin — the plugin serves any
- * root the resolver admits, including the private '//../private-files'
- * convention.
+ * Posture: a leading '../' in a target throws through the operator (a
+ * documented deviation from raw fopen behavior, never an emulated
+ * escape); a publicly accessible local root outside the webroot is
+ * refused by the settings validator, not by this plugin — the plugin
+ * serves any root the resolver admits, including the
+ * '/../private-files' convention used for private storage.
  */
 #[Group('flysystem')]
 #[CoversNothing]
@@ -88,7 +87,7 @@ final class LocalAdapterPluginTest extends TestCase {
   public function testPluginImplementsAdapterContractAndLocalStorageFeature(): void {
     $plugin = $this->plugin(['root' => 'sites/default/files']);
     self::assertInstanceOf(FlysystemAdapterInterface::class, $plugin);
-    self::assertTrue($plugin instanceof LocalStorageInterface, "The local backend declares the local-storage feature so the resolver wiring can answer the #5 containment question truthfully.");
+    self::assertTrue($plugin instanceof LocalStorageInterface, "The local backend declares the local-storage feature so the resolver wiring can answer the webroot-containment question truthfully.");
   }
 
   /**
@@ -172,7 +171,7 @@ final class LocalAdapterPluginTest extends TestCase {
   }
 
   /**
-   * Verifies leading '..' in a target throws through the operator (B2b).
+   * Verifies a leading '..' in a target throws through the operator.
    */
   public function testLeadingEscapeInTargetThrows(): void {
     $plugin = $this->plugin(['root' => 'files']);
@@ -182,7 +181,7 @@ final class LocalAdapterPluginTest extends TestCase {
   }
 
   /**
-   * Verifies interior '..' resolves inside the bound root (B2 posture).
+   * Verifies interior '..' resolves safely inside the bound root.
    */
   public function testInteriorTraversalResolvesWithinRoot(): void {
     $plugin = $this->plugin(['root' => 'files']);

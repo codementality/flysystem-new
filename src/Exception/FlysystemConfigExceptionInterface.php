@@ -7,8 +7,8 @@ namespace Drupal\flysystem\Exception;
 /**
  * Marker interface for every typed settings-validation failure.
  *
- * The row's contract requires typed, catchable exceptions per rule; this
- * is the one type consumers catch when they want any settings defect.
+ * Validation failures are typed and catchable per rule; this is the one
+ * type consumers catch when they want any settings defect at once.
  */
 interface FlysystemConfigExceptionInterface {
 

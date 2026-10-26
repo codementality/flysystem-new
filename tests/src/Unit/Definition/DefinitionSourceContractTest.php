@@ -14,25 +14,25 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for M1-04 (Part 1): the definition source contract.
+ * Tests the definition source contract: plain-array layers, nothing more.
  *
  * The contract: a source returns plain-array layers (adapter definitions
- * plus scheme bindings) and nothing else — no validation (M1-05), no
- * merging/precedence (M1-06), no normalization. D4/D8 must have no
- * source-specific branches anywhere below the resolver, so the interface
- * carries no origin/type sniffing method either (frozen by reflection).
+ * plus scheme bindings) and nothing else — no validation, no
+ * merging/precedence, no normalization. No source-specific branch may
+ * exist anywhere below the resolver, so the interface carries no
+ * origin/type sniffing method either (frozen by reflection).
  *
  * SettingsSource reads $settings['flysystem'] through the static Settings
  * facade, the same pre-container pattern core itself uses for wrapper
- * configuration (PublicStream::basePath() → Settings::get(), evaluation
- * §1.1, web/core/lib/Drupal/Core/StreamWrapper/PublicStream.php:96-109;
+ * configuration (PublicStream::basePath() → Settings::get(),
+ * web/core/lib/Drupal/Core/StreamWrapper/PublicStream.php:96-109;
  * the singleton assignment in web/core/lib/Drupal/Core/Site/Settings.php:54-57
  * is what makes these unit tests possible without a container).
  *
- * ArrayDefinitionSource is the stand-in for M3's config-entity source: a
- * fake that replaces a definition *source*, deliberately not the memory
- * *adapter* (D10 distinction). Identical resolver behavior against both
- * sources is the seam M3 plugs into.
+ * ArrayDefinitionSource replaces a definition *source* for tests —
+ * deliberately not the memory *adapter*, which replaces a storage
+ * backend. Identical behavior through both sources is the seam any
+ * future source (config entities, for example) plugs into.
  */
 #[Group('flysystem')]
 #[CoversNothing]
@@ -83,11 +83,11 @@ final class DefinitionSourceContractTest extends TestCase {
       $methods[] = $method->getName();
     }
     sort($methods);
-    // Ratchet: no getSourceType()/origin methods — D4/D8 forbid any
+    // Ratchet: no getSourceType()/origin methods — forbidding any
     // source-specific branching below the resolver, and an interface
     // carrying origin would invite it. Later methods are a deliberate
     // decision, reviewed as such.
-    self::assertSame(['getAdapterDefinitions', 'getSchemeBindings'], $methods, 'The definition source seam is exactly two plain-array layers in M1.');
+    self::assertSame(['getAdapterDefinitions', 'getSchemeBindings'], $methods, 'The definition source seam is exactly two plain-array layers.');
   }
 
   /**
@@ -138,7 +138,7 @@ final class DefinitionSourceContractTest extends TestCase {
     foreach ($sources as $source) {
       self::assertInstanceOf(AdapterDefinitionSourceInterface::class, $source);
     }
-    // The resolver (M1-06) will consume these outputs; identity here is the
+    // The binding resolver consumes these outputs; identity here is the
     // seam proof — swapping a source requires no resolver change.
     self::assertEquals($sources[0]->getAdapterDefinitions(), $sources[1]->getAdapterDefinitions());
     self::assertEquals($sources[0]->getSchemeBindings(), $sources[1]->getSchemeBindings());
@@ -174,7 +174,7 @@ final class DefinitionSourceContractTest extends TestCase {
    */
   public function testSourcesReturnRawLayersUntouched(): void {
     // Malformed entries (bad id types, unknown keys) must pass through a
-    // source verbatim: validation is M1-05's typed job, precedence M1-06's.
+    // source verbatim: validation and precedence belong to consumers.
     $malformed = [
       'adapters' => ['main' => ['plugin' => 'local', 'unexpected_key' => 'kept']],
       'bindings' => ['public' => ['adapter' => 'main', 'disabled' => 'not-a-bool']],

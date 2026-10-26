@@ -20,18 +20,18 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for M1-02 (Part 1): the FlysystemAdapter plugin type and manager.
+ * Tests the FlysystemAdapter plugin type, manager, and precedence wiring.
  *
- * Follows the Search API backend-plugin model (per owner ruling 2026-10-26):
+ * Follows the Search API module's backend-plugin model:
  * adapters describe themselves through methods they implement
  * (buildFilesystem(), isAvailable()); the base module discovers plugin
  * classes through the attribute + manager and never classifies backends.
  *
  * The fixture plugin below is declared in this test file and injected
  * through discovery exactly the way a real adapter module ships one in
- * src/Plugin/FlysystemAdapter/ - that is the row's pluggability proof:
- * "new backend requires only a new plugin class", with zero base-module
- * edits. The real Local plugin arrives in issue #9.
+ * src/Plugin/FlysystemAdapter/ — that is the pluggability proof:
+ * "a new backend requires only a new plugin class", with zero
+ * base-module edits.
  */
 #[Group('flysystem')]
 #[CoversNothing]

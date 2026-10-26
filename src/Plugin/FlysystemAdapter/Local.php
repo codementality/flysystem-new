@@ -19,7 +19,7 @@ use League\Flysystem\Visibility;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * The local filesystem adapter plugin — the one user-definable backend of M1.
+ * The local filesystem adapter plugin — the module's built-in backend.
  *
  * Owns the root-handling rules the local backend is responsible for:
  * relative roots anchor to the app root (never the process CWD), '..'
@@ -29,8 +29,8 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * root unless lazyRootCreation is set; core never creates storage at
  * config time either). The first write materializes the root.
  *
- * Permission posture (owner ruling on PR #17, backward compatibility with
- * flysystem 2.x): users are NOT prompted for unix modes. Defaults come
+ * Permission posture (backward compatibility with the Drupal Flysystem
+ * 2.x module): users are NOT prompted for unix modes. Defaults come
  * from Drupal's own long-standing settings — file_chmod_file (0664) and
  * file_chmod_directory (0775) — with private counterparts 0600/0700, and
  * a Filesystem-level default visibility of PUBLIC so writes are chmodded

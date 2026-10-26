@@ -10,12 +10,12 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Tests for M1-01 (Part 1): module scaffold contract.
+ * Tests the module scaffold contract: packaging and the wrapper guard.
  *
- * Asserts the D10 scaffold decisions as data: machine name / namespace
+ * Asserts the scaffold packaging as data: machine name / namespace
  * `flysystem` / `Drupal\flysystem`, the module's own composer.json runtime
  * requires (league/flysystem ^3 + flysystem-local; memory stays a host
- * dev-only package), and the M1 scope guard — the module contributes ZERO
+ * dev-only package), and the scope guard — the module contributes ZERO
  * services tagged `stream_wrapper` and no call path reaches
  * stream_wrapper_register().
  */
@@ -37,7 +37,7 @@ final class FlysystemScaffoldContractTest extends TestCase {
   }
 
   /**
-   * Verifies that the scaffold files required by the D10 row exist.
+   * Verifies that the required scaffold files exist.
    */
   public function testScaffoldFilesExist(): void {
     foreach (['flysystem.info.yml', 'flysystem.services.yml', 'composer.json'] as $file) {
@@ -46,9 +46,9 @@ final class FlysystemScaffoldContractTest extends TestCase {
   }
 
   /**
-   * Verifies the info file declares a Drupal 11 module (D10 machine name).
+   * Verifies the info file declares a Drupal 11 module with the right name.
    */
-  public function testInfoYmlDeclaresD10Module(): void {
+  public function testInfoYmlDeclaresModuleIdentity(): void {
     $path = $this->moduleRoot . '/flysystem.info.yml';
     self::assertFileExists($path);
     $info = Yaml::parseFile($path);
@@ -58,7 +58,7 @@ final class FlysystemScaffoldContractTest extends TestCase {
   }
 
   /**
-   * Verifies the module composer.json declares the M1 runtime requires only.
+   * Verifies the module composer.json declares runtime requires only.
    */
   public function testComposerRuntimeRequires(): void {
     $path = $this->moduleRoot . '/composer.json';
@@ -69,16 +69,16 @@ final class FlysystemScaffoldContractTest extends TestCase {
     $require = $composer['require'] ?? [];
     self::assertArrayHasKey('league/flysystem', $require, 'Runtime requires must include league/flysystem.');
     self::assertMatchesRegularExpression('/^(\^)?3(\.|$|\s)/', trim((string) $require['league/flysystem']), 'league/flysystem must be constrained to version 3.');
-    self::assertArrayHasKey('league/flysystem-local', $require, 'Runtime requires must include league/flysystem-local (the one user-definable M1 adapter, D10).');
-    self::assertArrayNotHasKey('league/flysystem-memory', $require, 'The memory adapter is never a runtime require (D10); it is satisfied by the host project\'s require-dev.');
+    self::assertArrayHasKey('league/flysystem-local', $require, 'Runtime requires must include league/flysystem-local (the module\'s built-in local backend).');
+    self::assertArrayNotHasKey('league/flysystem-memory', $require, 'The memory adapter is never a runtime require; it is satisfied by the host project\'s require-dev.');
 
     $psr4 = $composer['autoload']['psr-4'] ?? [];
-    self::assertArrayHasKey('Drupal\\flysystem\\', $psr4, 'Autoload must map the Drupal\flysystem namespace (D10).');
+    self::assertArrayHasKey('Drupal\\flysystem\\', $psr4, 'Autoload must map the Drupal\flysystem namespace.');
     self::assertSame('src/', $psr4['Drupal\\flysystem\\'], 'The namespace must map to src/.');
   }
 
   /**
-   * Verifies zero services are tagged `stream_wrapper` in M1.
+   * Verifies zero services are tagged `stream_wrapper`.
    */
   public function testZeroStreamWrapperTaggedServices(): void {
     $found = [];
@@ -92,7 +92,7 @@ final class FlysystemScaffoldContractTest extends TestCase {
         }
       }
     }
-    self::assertSame([], $found, 'The module must contribute zero services tagged stream_wrapper in M1.');
+    self::assertSame([], $found, 'The module must contribute zero services tagged stream_wrapper.');
   }
 
   /**
@@ -106,7 +106,7 @@ final class FlysystemScaffoldContractTest extends TestCase {
         $hits[] = str_replace($this->moduleRoot . '/', '', $file) . ': ' . $match[0];
       }
     }
-    self::assertSame([], $hits, 'No call path may reach stream_wrapper_register() in M1 (found: ' . implode(', ', $hits) . ').');
+    self::assertSame([], $hits, 'No call path may reach stream_wrapper_register() (found: ' . implode(', ', $hits) . ').');
   }
 
   /**

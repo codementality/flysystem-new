@@ -16,14 +16,14 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for M1-05 (Part 1): settings.php schema and validation.
+ * Tests the settings.php schema validator: constraints and containment.
  *
- * Covers the row's contract matrix: scheme/adapter-id name constraints,
- * non-array/type violations, unknown plugin ids, and the full D9
- * containment matrix — all lazily: touching scheme X surfaces X's errors
- * only (B4 posture: a broken binding errors only when used, never at
+ * Covers the contract matrix: scheme/adapter-id name constraints,
+ * non-array/type violations, unknown plugin ids, and the full
+ * webroot-containment matrix — all lazily: touching scheme X surfaces
+ * X's errors only (a broken binding errors only when used, never at
  * container build or install). A full-layer sweep exists separately for
- * the verification API (M1-11).
+ * the verification API.
  *
  * Scheme grammar is the intersection of the two real grammars a bound
  * scheme must survive, so "anything bindable is usable" in both
@@ -34,11 +34,10 @@ use PHPUnit\Framework\TestCase;
  * web/core/lib/Drupal/Core/StreamWrapper/StreamWrapperManager.php:269-276
  * — cannot parse '.' or '+'. What both accept: ^[A-Za-z0-9-]+$.
  *
- * The local/remote question is asked through an injectable predicate
- * (plugin id => TRUE local / FALSE remote / NULL unknown) rather than
- * importing M1-03's RegistrationMode enum: the validator must stand on
- * main, and M1-02's plugin manager will bridge the predicate to the typed
- * enum at wiring time. The un-injected default recognizes only 'local'.
+ * The local-versus-remote question is asked through an injectable
+ * predicate (plugin id => TRUE local / FALSE remote / NULL unknown); the
+ * adapter plugin manager's discovery data supplies the answer at wiring
+ * time. The un-injected default recognizes only 'local'.
  */
 #[Group('flysystem')]
 #[CoversNothing]
@@ -94,7 +93,7 @@ final class SettingsValidatorContractTest extends TestCase {
    * Verifies the documented name patterns are the validator's constants.
    */
   public function testNamePatternsAreTheDocumentedVocabulary(): void {
-    self::assertSame('/^[A-Za-z0-9-]+$/', SettingsValidator::SCHEME_PATTERN, 'Scheme grammar must be the intersection of PHP-registration and core-parsing grammars (see class docblock; owner review 2026-10-26).');
+    self::assertSame('/^[A-Za-z0-9-]+$/', SettingsValidator::SCHEME_PATTERN, 'Scheme grammar must be the intersection of PHP-registration and core-parsing grammars (see class docblock).');
     self::assertSame('/^[a-z0-9_]+$/', SettingsValidator::ADAPTER_ID_PATTERN, 'Adapter id grammar is lowercase alphanumeric plus underscore.');
   }
 
@@ -155,7 +154,7 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
-   * An unbound, validly-named scheme is not an error (D7a coexistence).
+   * An unbound, validly-named scheme is not an error (core-native coexistence).
    */
   public function testUnboundSchemeIsValid(): void {
     $validator = self::validator();
@@ -267,7 +266,7 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
-   * But a full sweep (M1-11) surfaces every planted defect.
+   * But a full sweep (the verification API) surfaces every planted defect.
    */
   public function testFullSweepSurfacesAllDefects(): void {
     $this->expectException(InvalidSettingsStructureException::class);
@@ -299,10 +298,10 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
-   * The D9 containment matrix.
+   * The webroot containment matrix.
    */
   #[DataProvider('containmentMatrixProvider')]
-  public function testD9ContainmentMatrix(array $binding, array $adapters, ?string $expectedError): void {
+  public function testWebrootContainmentMatrix(array $binding, array $adapters, ?string $expectedError): void {
     $layer = ['adapters' => $adapters, 'bindings' => ['the-scheme' => $binding]];
     // The scheme name is irrelevant to the matrix; use 'the-scheme' so no
     // default-public special-casing applies except where asserted.
@@ -317,10 +316,10 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
-   * Provides the D9 containment matrix rows.
+   * Provides the webroot containment matrix rows.
    *
    * @return array<string, array{0: array, 1: array, 2: string|null}>
-   *   D9 rows: binding, adapters, expected exception class or NULL.
+   *   Rows: binding, adapters, expected exception class or NULL.
    */
   public static function containmentMatrixProvider(): array {
     $inside = ['main' => self::localDefinition('sites/default/files')];
@@ -395,7 +394,7 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
-   * An explicit FALSE override releases a core public scheme from D9.
+   * An explicit FALSE override releases a core public scheme from containment.
    */
   public function testExplicitNonPublicOverridePassesForCorePublic(): void {
     $layer = self::layerFor('public', ['adapter' => 'main', 'publicly_accessible' => FALSE], ['main' => self::localDefinition('/srv/elsewhere')]);
@@ -404,7 +403,7 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
-   * D9 rejections name the resolved path (precise, actionable errors).
+   * Containment rejections name the resolved path (actionable errors).
    */
   public function testContainmentRejectionNamesResolvedPath(): void {
     $layer = self::layerFor('public', ['adapter' => 'main', 'publicly_accessible' => TRUE], ['main' => self::localDefinition('../public-outside')]);
@@ -413,7 +412,7 @@ final class SettingsValidatorContractTest extends TestCase {
       self::fail('Expected PublicRootOutsideWebrootException.');
     }
     catch (PublicRootOutsideWebrootException $e) {
-      self::assertStringContainsString('/public-outside', $e->getMessage(), 'Lexically resolved path must appear in the error (anchored to app root, never realpath — B2a).');
+      self::assertStringContainsString('/public-outside', $e->getMessage(), 'Lexically resolved path must appear in the error (anchored to app root, never realpath).');
       self::assertStringContainsString('public', $e->getMessage());
     }
   }
@@ -438,7 +437,7 @@ final class SettingsValidatorContractTest extends TestCase {
         'private' => ['adapter' => 'main', 'publicly_accessible' => TRUE],
       ],
     ];
-    // 'private' binding is not itself broken; make it D9-invalid by giving
+    // 'private' binding is not itself broken; make it invalid by giving
     // its adapter an outside root under a second definition.
     $layer['adapters']['secret'] = self::localDefinition('/srv/outside');
     $privateBinding = ['adapter' => 'secret', 'publicly_accessible' => TRUE];

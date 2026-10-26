@@ -14,6 +14,6 @@
         }
     },
     "extra": {
-        "_comment": "Package name is a working identifier only; final naming/publication is an M8 decision (Milestone 1 plan, Prerequisites row)."
+        "_comment": "Package name is a working identifier only; final naming and publication are decided at release time."
     }
 }

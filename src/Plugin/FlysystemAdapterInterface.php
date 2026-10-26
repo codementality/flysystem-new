@@ -10,13 +10,12 @@ use League\Flysystem\FilesystemOperator;
 /**
  * The adapter plugin contract: backends describe themselves by methods.
  *
- * Modeled on Search API's backend plugins (owner ruling 2026-10-26): the
- * base module does not define capability types about adapters — each
- * adapter plugin answers for itself, at the moment a caller asks.
- * Feature questions join this interface only when a real consumer needs
- * them (first candidate: the webroot-containment question the settings
- * validator asks, wired through issue #2's manager); URL generation and
- * self-validation methods arrive with the wrapper and verification work.
+ * Modeled on the Search API module's backend plugins: the base module
+ * defines no capability types about adapters — each adapter plugin
+ * answers for itself, at the moment a caller asks. Feature questions
+ * join this interface only when a real consumer needs them; methods for
+ * URL generation and self-validation arrive with the work that actually
+ * calls them.
  */
 interface FlysystemAdapterInterface extends ConfigurableInterface {
 
