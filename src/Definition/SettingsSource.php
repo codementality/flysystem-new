@@ -110,6 +110,12 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
         continue;
       }
       $config = is_array($entry['config'] ?? NULL) ? $entry['config'] : [];
+      // Derive the ADAPTER ID, never a scheme name. Adapter ids allow
+      // underscores (settings validation accepts ^[a-z0-9_]+$); scheme
+      // names are carried through verbatim as binding keys below, and
+      // the settings validator — not this code — is the sole authority
+      // on which scheme names are legal (it rejects underscores, which
+      // PHP's stream wrapper registration cannot register at all).
       $base = preg_replace('/[^a-z0-9_]/', '_', strtolower((string) $scheme)) ?? '';
       $id = $base === '' ? 'adapter' : $base;
       $suffix = 2;

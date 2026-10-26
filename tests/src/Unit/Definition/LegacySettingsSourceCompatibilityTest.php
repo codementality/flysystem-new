@@ -6,6 +6,7 @@ namespace Drupal\flysystem\Tests\Unit\Definition;
 
 use Drupal\Core\Site\Settings;
 use Drupal\flysystem\Definition\SettingsSource;
+use Drupal\flysystem\Validation\SettingsValidator;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
@@ -100,26 +101,37 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
    * Verifies sanitization is deterministic and collision-safe.
    */
   public function testSanitizedIdsAreDeterministicAndCollisionFree(): void {
-    // Sorted scheme order is a+b, a-b, a_b ('+' < '-' < '_'), so the bare
-    // sanitized id belongs to a+b and later schemes take the suffixes.
+    // Three 2.x-legal scheme names whose punctuation characters all
+    // sanitize to the same underscore — collisions are expected and must
+    // stay deterministic. Sorted scheme order is a+b, a-b, a.b ('+' 43 <
+    // '-' 45 < '.' 46), so a+b takes the bare sanitized id. These names
+    // sanitize to ADAPTER IDS (underscores legal there, per the
+    // adapter-id grammar the settings validator enforces); as SCHEMES,
+    // a.b would fail that same validator's scheme grammar when touched —
+    // this test covers normalization only, and the validator remains the
+    // sole authority on legal scheme names.
     new Settings([
       'flysystem' => [
         'a-b' => ['driver' => 'local', 'config' => ['root' => 'from-hyphen']],
-        'a_b' => ['driver' => 'local', 'config' => ['root' => 'from-underscore']],
+        'a.b' => ['driver' => 'local', 'config' => ['root' => 'from-dot']],
         'a+b' => ['driver' => 'local', 'config' => ['root' => 'from-plus']],
       ],
     ]);
     $source = new SettingsSource();
+    $adapters = $source->getAdapterDefinitions();
     self::assertSame([
       'a_b' => ['plugin' => 'local', 'config' => ['root' => 'from-plus']],
       'a_b_2' => ['plugin' => 'local', 'config' => ['root' => 'from-hyphen']],
-      'a_b_3' => ['plugin' => 'local', 'config' => ['root' => 'from-underscore']],
-    ], $source->getAdapterDefinitions(), 'Colliding sanitized ids get stable suffixes in sorted scheme order, each keeping its own configuration.');
+      'a_b_3' => ['plugin' => 'local', 'config' => ['root' => 'from-dot']],
+    ], $adapters, 'Colliding sanitized ids get stable suffixes in sorted scheme order, each keeping its own configuration.');
     self::assertSame([
       'a+b' => ['adapter' => 'a_b'],
       'a-b' => ['adapter' => 'a_b_2'],
-      'a_b' => ['adapter' => 'a_b_3'],
-    ], $source->getSchemeBindings());
+      'a.b' => ['adapter' => 'a_b_3'],
+    ], $source->getSchemeBindings(), 'Binding keys keep the scheme name exactly as configured — the normalizer never rewrites a scheme.');
+    foreach (array_keys($adapters) as $id) {
+      self::assertMatchesRegularExpression(SettingsValidator::ADAPTER_ID_PATTERN, $id, 'Every generated adapter id must satisfy the adapter-id grammar, underscores included.');
+    }
   }
 
   /**
