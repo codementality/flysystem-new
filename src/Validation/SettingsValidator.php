@@ -35,7 +35,7 @@ final class SettingsValidator {
   /**
    * Scheme grammar: the intersection of PHP-registration and core-parsing.
    *
-   * PHP's stream_wrapper_register() rejects underscores outright (verified
+   * PHP's stream-wrapper registration rejects underscores outright (verified
    * live: "Invalid protocol scheme specified"); core's scheme parser
    * (web/core/lib/Drupal/Core/StreamWrapper/StreamWrapperManager.php:
    * 269-276) cannot parse '.' or '+'. A bindable scheme must exist in
