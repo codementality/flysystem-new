@@ -1,0 +1,214 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\flysystem\Tests\Unit\Plugin;
+
+use Drupal\flysystem\Plugin\FlysystemAdapterInterface;
+use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
+use Drupal\flysystem\Plugin\LocalStorageInterface;
+use League\Flysystem\PathTraversalDetected;
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Tests for M1-09 (Part 1): the local adapter plugin.
+ *
+ * The plugin is a backend's own answer to the plugin contract shipped by
+ * issue #2: buildFilesystem() from an array, isAvailable() honestly.
+ * Everything here is about the root-handling decisions the local backend
+ * owns — anchoring relative roots to the app root (never the process
+ * CWD), collapsing '..' lexically (never realpath(), which would break
+ * not-yet-created roots and resolve symlinks the OS is supposed to see),
+ * and creating nothing at construction time.
+ *
+ * Posture notes carried from the ruling record: leading '../' in a TARGET
+ * throws through the operator (both postures — documented deviation, not
+ * emulated escape); a PUBLIC/local root outside the webroot is refused by
+ * the settings validator (#5), not by this plugin — the plugin serves any
+ * root the resolver admits, including the private '//../private-files'
+ * convention.
+ */
+#[Group('flysystem')]
+#[CoversNothing]
+final class LocalAdapterPluginTest extends TestCase {
+
+  private string $appRoot = '';
+
+  private string $otherCwd = '';
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+    $base = sys_get_temp_dir() . '/flysystem-m109-' . getmypid();
+    $this->appRoot = $base . '/web';
+    $this->otherCwd = $base . '/elsewhere';
+    mkdir($this->appRoot, 0777, TRUE);
+    mkdir($this->otherCwd, 0777, TRUE);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function tearDown(): void {
+    chdir(sys_get_temp_dir());
+    exec('rm -rf ' . escapeshellarg(dirname($this->appRoot)));
+    parent::tearDown();
+  }
+
+  /**
+   * Builds a local plugin instance directly (no container in unit tests).
+   *
+   * @param array<string, mixed> $configuration
+   *   Plugin configuration (root and options).
+   */
+  private function plugin(array $configuration): Local {
+    $definition = ['id' => 'local', 'class' => Local::class];
+    return new Local($configuration, 'local', $definition, $this->appRoot);
+  }
+
+  /**
+   * Verifies the plugin is a Flysystem adapter and declares local storage.
+   */
+  public function testPluginImplementsAdapterContractAndLocalStorageFeature(): void {
+    $plugin = $this->plugin(['root' => 'sites/default/files']);
+    self::assertInstanceOf(FlysystemAdapterInterface::class, $plugin);
+    self::assertTrue($plugin instanceof LocalStorageInterface, "The local backend declares the local-storage feature so the resolver wiring can answer the #5 containment question truthfully.");
+  }
+
+  /**
+   * Verifies isAvailable() reflects the vendored package, honestly.
+   */
+  public function testIsAvailableReflectsVendoredPackage(): void {
+    $plugin = $this->plugin(['root' => 'files']);
+    self::assertTrue($plugin->isAvailable(), 'league/flysystem-local is a runtime require — availability is TRUE here and the plugin must say so.');
+  }
+
+  /**
+   * Verifies a relative root anchors to the app root, never process CWD.
+   */
+  public function testRelativeRootAnchorsToAppRootRegardlessOfCwd(): void {
+    $plugin = $this->plugin(['root' => 'files']);
+    $operator = $plugin->buildFilesystem();
+
+    $observed = [];
+    foreach ([$this->appRoot, $this->otherCwd, dirname($this->appRoot)] as $cwd) {
+      chdir($cwd);
+      $operator->write("probe-$cwd.txt", 'anchored');
+      $observed[$cwd] = [
+        'in_app_root' => is_file($this->appRoot . '/files/' . "probe-$cwd.txt"),
+        'in_cwd' => is_file($cwd . '/files/' . "probe-$cwd.txt"),
+      ];
+    }
+    foreach ($observed as $cwd => $facts) {
+      self::assertTrue($facts['in_app_root'], "From CWD $cwd, the relative root must still land inside the app root.");
+      if ($cwd !== $this->appRoot) {
+        self::assertFalse($facts['in_cwd'], "From CWD $cwd, nothing may be created relative to the process directory.");
+      }
+    }
+  }
+
+  /**
+   * Verifies '..' in configured roots collapses lexically, no realpath.
+   */
+  public function testDotDotSegmentsCollapseLexically(): void {
+    $plugin = $this->plugin(['root' => 'sites/default/../private']);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('secret.txt', 'x');
+    self::assertFileExists($this->appRoot . '/sites/default/../private/secret.txt');
+    self::assertFileExists($this->appRoot . '/private/secret.txt');
+    self::assertFileDoesNotExist($this->appRoot . '/sites/private/secret.txt', 'Lexical collapse must apply to the root itself, not only to targets.');
+  }
+
+  /**
+   * Verifies construction against a nonexistent root has no side effects.
+   */
+  public function testNonexistentRootConstructsWithoutSideEffectsOrErrors(): void {
+    $missing = 'not-created-yet';
+    $plugin = $this->plugin(['root' => $missing]);
+    $operator = $plugin->buildFilesystem();
+    self::assertDirectoryDoesNotExist($this->appRoot . '/' . $missing, 'Reading config and building an operator must not create anything — core never does this at config time.');
+    $operator->write('late.txt', 'content appears on first write');
+    self::assertSame('content appears on first write', $operator->read('late.txt'));
+    self::assertDirectoryExists($this->appRoot . '/' . $missing);
+  }
+
+  /**
+   * Verifies an absolute root passes through verbatim.
+   */
+  public function testAbsoluteRootPassesThroughVerbatim(): void {
+    $absolute = $this->otherCwd . '/abs-root';
+    $plugin = $this->plugin(['root' => $absolute]);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('here.txt', 'yes');
+    self::assertFileExists($absolute . '/here.txt');
+  }
+
+  /**
+   * Verifies the private-files convention: '../' roots outside webroot work.
+   */
+  public function testPrivateConventionRelativeEscapeRoundTrip(): void {
+    $plugin = $this->plugin(['root' => '/../private-outside']);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('pf.txt', 'private lives outside the webroot by convention');
+    self::assertSame('private lives outside the webroot by convention', $operator->read('pf.txt'));
+    self::assertFileExists(dirname($this->appRoot) . '/private-outside/pf.txt');
+  }
+
+  /**
+   * Verifies leading '..' in a target throws through the operator (B2b).
+   */
+  public function testLeadingEscapeInTargetThrows(): void {
+    $plugin = $this->plugin(['root' => 'files']);
+    $operator = $plugin->buildFilesystem();
+    $this->expectException(PathTraversalDetected::class);
+    $operator->write('../escape.txt', 'nope');
+  }
+
+  /**
+   * Verifies interior '..' resolves inside the bound root (B2 posture).
+   */
+  public function testInteriorTraversalResolvesWithinRoot(): void {
+    $plugin = $this->plugin(['root' => 'files']);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('deep/nested.txt', 'v');
+    $read = $operator->readStream('deep/../deep/nested.txt');
+    self::assertSame('v', stream_get_contents($read), 'Local-mode operators keep library-default relative resolution inside the root.');
+  }
+
+  /**
+   * Verifies unix visibility config is passed through to the library.
+   */
+  public function testUnixVisibilityConverterOptionsPassThrough(): void {
+    $plugin = $this->plugin([
+      'root' => 'files',
+      'unix_visibility' => [
+        'file' => ['public' => 0644, 'private' => 0600],
+        'dir' => ['public' => 0755, 'private' => 0700],
+      ],
+    ]);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('priv.txt', 'x', ['visibility' => 'private']);
+    $perms = fileperms($this->appRoot . '/files/priv.txt') & 0777;
+    self::assertSame(0600, $perms, "Configured private file mode must be honored: the converter pass-through is the config-domain proof.");
+  }
+
+  /**
+   * Verifies reads through the operator dispatch under this plugin root.
+   */
+  public function testRoundTripThroughOperator(): void {
+    $plugin = $this->plugin(['root' => 'round']);
+    $operator = $plugin->buildFilesystem();
+    $operator->write('a.txt', 'hello');
+    self::assertSame('hello', $operator->read('a.txt'));
+    $paths = [];
+    foreach ($operator->listContents('', TRUE) as $item) {
+      $paths[] = $item->path();
+    }
+    self::assertSame(['a.txt'], $paths);
+  }
+
+}
