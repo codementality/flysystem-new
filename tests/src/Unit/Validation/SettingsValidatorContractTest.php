@@ -106,6 +106,8 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
+   * Provides core-registerable scheme names.
+   *
    * @return array<string, array{0: string}>
    *   Scheme names core itself would register.
    */
@@ -131,6 +133,8 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
+   * Provides names outside core's scheme grammar.
+   *
    * @return array<string, array{0: string}>
    *   Scheme names outside core's grammar.
    */
@@ -163,6 +167,8 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
+   * Provides adapter ids outside the declared grammar.
+   *
    * @return array<string, array{0: string}>
    *   Adapter ids outside the declared grammar.
    */
@@ -186,22 +192,59 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
+   * Provides malformed layers paired with the scheme touched.
+   *
    * @return array<string, array{0: array<string, mixed>, 1: string}>
    *   Malformed layers paired with the scheme touched.
    */
   public static function structureViolationProvider(): array {
+    $goodDef = ['main' => self::localDefinition('r')];
+    $goodBinding = ['public' => ['adapter' => 'main']];
     return [
-      'bindings section non-array' => [['adapters' => ['main' => self::localDefinition('r')], 'bindings' => 'oops'], 'public'],
-      'adapters section non-array' => [['adapters' => 'oops', 'bindings' => ['public' => ['adapter' => 'main']]], 'public'],
-      'binding entry non-array' => [['adapters' => ['main' => self::localDefinition('r')], 'bindings' => ['public' => 'nope']], 'public'],
-      'definition entry non-array' => [['adapters' => ['main' => 'nope'], 'bindings' => ['public' => ['adapter' => 'main']]], 'public'],
-      'plugin not string' => [['adapters' => ['main' => ['plugin' => 123]], 'bindings' => ['public' => ['adapter' => 'main']]], 'public'],
-      'plugin missing' => [['adapters' => ['main' => ['config' => []]], 'bindings' => ['public' => ['adapter' => 'main']]], 'public'],
-      'config not array' => [['adapters' => ['main' => ['plugin' => 'local', 'config' => 'oops']], 'bindings' => ['public' => ['adapter' => 'main']]], 'public'],
-      'adapter key not string' => [['adapters' => ['main' => self::localDefinition('r')], 'bindings' => ['public' => ['adapter' => ['nested']]]], 'public'],
-      'disabled not bool' => [['adapters' => ['main' => self::localDefinition('r')], 'bindings' => ['public' => ['adapter' => 'main', 'disabled' => 'yes']]], 'public'],
-      'publicly_accessible not bool' => [['adapters' => ['main' => self::localDefinition('r')], 'bindings' => ['public' => ['adapter' => 'main', 'publicly_accessible' => '1']]], 'public'],
-      'root not string' => [['adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 42]]], 'bindings' => ['public' => ['adapter' => 'main']]], 'public'],
+      'bindings section non-array' => [
+        ['adapters' => $goodDef, 'bindings' => 'oops'],
+        'public',
+      ],
+      'adapters section non-array' => [
+        ['adapters' => 'oops', 'bindings' => $goodBinding],
+        'public',
+      ],
+      'binding entry non-array' => [
+        ['adapters' => $goodDef, 'bindings' => ['public' => 'nope']],
+        'public',
+      ],
+      'definition entry non-array' => [
+        ['adapters' => ['main' => 'nope'], 'bindings' => $goodBinding],
+        'public',
+      ],
+      'plugin not string' => [
+        ['adapters' => ['main' => ['plugin' => 123]], 'bindings' => $goodBinding],
+        'public',
+      ],
+      'plugin missing' => [
+        ['adapters' => ['main' => ['config' => []]], 'bindings' => $goodBinding],
+        'public',
+      ],
+      'config not array' => [
+        ['adapters' => ['main' => ['plugin' => 'local', 'config' => 'oops']], 'bindings' => $goodBinding],
+        'public',
+      ],
+      'adapter key not string' => [
+        ['adapters' => $goodDef, 'bindings' => ['public' => ['adapter' => ['nested']]]],
+        'public',
+      ],
+      'disabled not bool' => [
+        ['adapters' => $goodDef, 'bindings' => ['public' => ['adapter' => 'main', 'disabled' => 'yes']]],
+        'public',
+      ],
+      'publicly_accessible not bool' => [
+        ['adapters' => $goodDef, 'bindings' => ['public' => ['adapter' => 'main', 'publicly_accessible' => '1']]],
+        'public',
+      ],
+      'root not string' => [
+        ['adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 42]]], 'bindings' => $goodBinding],
+        'public',
+      ],
     ];
   }
 
@@ -268,57 +311,70 @@ final class SettingsValidatorContractTest extends TestCase {
   }
 
   /**
+   * Provides the D9 containment matrix rows.
+   *
    * @return array<string, array{0: array, 1: array, 2: string|null}>
    *   D9 rows: binding, adapters, expected exception class or NULL.
    */
   public static function containmentMatrixProvider(): array {
-    $localDefs = ['main' => self::localDefinition('sites/default/files')];
+    $inside = ['main' => self::localDefinition('sites/default/files')];
+    $outsideAbs = ['main' => self::localDefinition('/srv/elsewhere')];
+    $public = ['adapter' => 'main', 'publicly_accessible' => TRUE];
     return [
       'public + local + inside relative root passes' => [
-        ['adapter' => 'main', 'publicly_accessible' => TRUE], $localDefs, NULL,
+        $public,
+        $inside,
+        NULL,
       ],
       'public + local + inside absolute root passes' => [
-        ['adapter' => 'main', 'publicly_accessible' => TRUE],
-        ['main' => self::localDefinition('/app-root/inside')], NULL,
+        $public,
+        ['main' => self::localDefinition('/app-root/inside')],
+        NULL,
       ],
       'public + local + outside relative root rejected' => [
-        ['adapter' => 'main', 'publicly_accessible' => TRUE],
+        $public,
         ['main' => self::localDefinition('../public-outside')],
         PublicRootOutsideWebrootException::class,
       ],
       'public + local + outside absolute root rejected' => [
-        ['adapter' => 'main', 'publicly_accessible' => TRUE],
-        ['main' => self::localDefinition('/srv/elsewhere')],
+        $public,
+        $outsideAbs,
         PublicRootOutsideWebrootException::class,
       ],
       'non-public + local + outside passes' => [
         ['adapter' => 'main'],
-        ['main' => self::localDefinition('/../private-files')], NULL,
+        ['main' => self::localDefinition('/../private-files')],
+        NULL,
       ],
       'non-public + local + relative escape passes' => [
         ['adapter' => 'main'],
-        ['main' => self::localDefinition('../private-files')], NULL,
+        ['main' => self::localDefinition('../private-files')],
+        NULL,
       ],
       'custom scheme defaults non-public, outside passes' => [
-        ['adapter' => 'main'], $localDefs, NULL,
+        ['adapter' => 'main'],
+        $inside,
+        NULL,
       ],
       'custom scheme explicitly public + outside rejected' => [
-        ['adapter' => 'main', 'publicly_accessible' => TRUE],
-        ['main' => self::localDefinition('/srv/elsewhere')],
+        $public,
+        $outsideAbs,
         PublicRootOutsideWebrootException::class,
       ],
       'remote plugin is exempt from containment' => [
-        ['adapter' => 'main', 'publicly_accessible' => TRUE],
-        ['main' => ['plugin' => 's3', 'config' => ['bucket' => 'anything-outside']]], NULL,
+        $public,
+        ['main' => ['plugin' => 's3', 'config' => ['bucket' => 'anything-outside']]],
+        NULL,
       ],
       'public local with no root configured cannot be verified' => [
-        ['adapter' => 'main', 'publicly_accessible' => TRUE],
+        $public,
         ['main' => ['plugin' => 'local']],
         PublicRootOutsideWebrootException::class,
       ],
       'disabled binding skips containment' => [
         ['adapter' => 'main', 'publicly_accessible' => TRUE, 'disabled' => TRUE],
-        ['main' => self::localDefinition('/srv/elsewhere')], NULL,
+        $outsideAbs,
+        NULL,
       ],
     ];
   }
@@ -371,12 +427,16 @@ final class SettingsValidatorContractTest extends TestCase {
   public function testErrorsAreLazyPerTouchedScheme(): void {
     $layer = [
       'adapters' => ['main' => self::localDefinition('ok')],
-      'bindings' => ['public' => ['adapter' => 'main'], 'private' => ['adapter' => 'main', 'publicly_accessible' => TRUE]],
+      'bindings' => [
+        'public' => ['adapter' => 'main'],
+        'private' => ['adapter' => 'main', 'publicly_accessible' => TRUE],
+      ],
     ];
     // 'private' binding is not itself broken; make it D9-invalid by giving
     // its adapter an outside root under a second definition.
     $layer['adapters']['secret'] = self::localDefinition('/srv/outside');
-    $layer['bindings']['private'] = ['adapter' => 'secret', 'publicly_accessible' => TRUE];
+    $privateBinding = ['adapter' => 'secret', 'publicly_accessible' => TRUE];
+    $layer['bindings']['private'] = $privateBinding;
     self::validator()->validateScheme('public', $layer);
     $this->expectException(PublicRootOutsideWebrootException::class);
     self::validator()->validateScheme('private', $layer);

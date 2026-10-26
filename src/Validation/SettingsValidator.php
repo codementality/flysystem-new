@@ -30,42 +30,45 @@ use Drupal\flysystem\Exception\UnknownAdapterPluginException;
  * bridges this to M1-03's RegistrationMode enum at wiring time; the
  * un-injected default recognizes 'local' only.
  */
-class SettingsValidator {
+final class SettingsValidator {
 
   /**
-   * Scheme grammar, mirroring core's scheme recognition (evaluation §1.1;
-   * web/core/lib/Drupal/Core/StreamWrapper/StreamWrapperManager.php:269-276)
-   * so anything registerable is bindable.
+   * Scheme grammar, mirroring core's scheme recognition.
+   *
+   * Evaluation §1.1; StreamWrapperManager::getScheme() in core at
+   * web/core/lib/Drupal/Core/StreamWrapper/StreamWrapperManager.php:
+   * 269-276. Anything registerable is bindable — the module must reject
+   * no scheme core itself could register.
    */
-  const SCHEME_PATTERN = '/^[A-Za-z0-9_-]+$/';
+  public const SCHEME_PATTERN = '/^[A-Za-z0-9_-]+$/';
 
   /**
    * Adapter id grammar: lowercase alphanumeric plus underscore.
    */
-  const ADAPTER_ID_PATTERN = '/^[a-z0-9_]+$/';
+  public const ADAPTER_ID_PATTERN = '/^[a-z0-9_]+$/';
 
   /**
    * The only core scheme that defaults publicly_accessible to TRUE.
    */
-  const PUBLIC_SCHEME = 'public';
+  public const PUBLIC_SCHEME = 'public';
 
   /**
-   * @var string
-   *   The app root (webroot) used for anchoring and D9 containment.
+   * The app root (webroot) for anchoring and D9 containment.
    */
-  private $appRoot;
+  private readonly string $appRoot;
 
   /**
-   * @var callable
-   *   Plugin locality predicate: id => ?bool (NULL = unknown plugin).
+   * Plugin locality predicate: id => ?bool (NULL = unknown plugin).
    */
-  private $isLocalMode;
+  private readonly \Closure $isLocalMode;
 
   /**
    * Constructs the validator.
    *
    * @param string $appRoot
-   *   The app root, e.g. \Drupal::root() at wiring time.
+   *   The app root (webroot), e.g. \Drupal::root() at wiring time. Used
+   *   for anchoring relative roots and as the D9 containment boundary.
+   *   Trailing separators are normalized away.
    * @param callable|null $isLocalMode
    *   (optional) Predicate mapping a plugin id to TRUE (local-mode),
    *   FALSE (remote/URL-mode), or NULL (unknown plugin). Defaults to a
@@ -73,9 +76,9 @@ class SettingsValidator {
    */
   public function __construct(string $appRoot, ?callable $isLocalMode = NULL) {
     $this->appRoot = rtrim($appRoot, '/');
-    $this->isLocalMode = $isLocalMode ?? static function (string $pluginId): ?bool {
-      return $pluginId === 'local' ? TRUE : NULL;
-    };
+    $this->isLocalMode = $isLocalMode === NULL
+      ? static fn (string $pluginId): ?bool => $pluginId === 'local' ? TRUE : NULL
+      : \Closure::fromCallable($isLocalMode);
   }
 
   /**
@@ -87,10 +90,15 @@ class SettingsValidator {
    *   The raw flysystem layer.
    *
    * @throws \Drupal\flysystem\Exception\InvalidSchemeNameException
+   *   When the scheme name is outside core's grammar.
    * @throws \Drupal\flysystem\Exception\InvalidAdapterIdException
+   *   When the binding's adapter id is outside the declared grammar.
    * @throws \Drupal\flysystem\Exception\InvalidSettingsStructureException
+   *   When a touched section or entry has the wrong shape.
    * @throws \Drupal\flysystem\Exception\UnknownAdapterPluginException
+   *   When the referenced plugin id is not a known adapter plugin.
    * @throws \Drupal\flysystem\Exception\PublicRootOutsideWebrootException
+   *   When a publicly accessible local root resolves outside the webroot (D9).
    */
   public function validateScheme(string $scheme, array $layer): void {
     if (!preg_match(self::SCHEME_PATTERN, $scheme)) {
@@ -163,13 +171,17 @@ class SettingsValidator {
    *   The raw flysystem layer.
    *
    * @throws \Drupal\flysystem\Exception\InvalidSettingsStructureException
+   *   When a section or entry has the wrong shape.
    * @throws \Drupal\flysystem\Exception\InvalidSchemeNameException
+   *   When a binding key is outside the scheme grammar.
    * @throws \Drupal\flysystem\Exception\InvalidAdapterIdException
+   *   When an adapter key is outside the adapter id grammar.
    */
   public function assertValidStructure(array $layer): void {
     foreach (['adapters', 'bindings'] as $section) {
       if (array_key_exists($section, $layer) && !is_array($layer[$section])) {
-        throw new InvalidSettingsStructureException($section, sprintf('an array keyed by %s id', $section === 'adapters' ? 'adapter' : 'scheme'));
+        $keyName = $section === 'adapters' ? 'adapter' : 'scheme';
+        throw new InvalidSettingsStructureException($section, sprintf('an array keyed by %s id', $keyName));
       }
     }
 
@@ -177,28 +189,32 @@ class SettingsValidator {
       if (!preg_match(self::SCHEME_PATTERN, (string) $scheme)) {
         throw new InvalidSchemeNameException((string) $scheme);
       }
+      $path = sprintf('bindings[%s]', $scheme);
       if (!is_array($binding)) {
-        throw new InvalidSettingsStructureException(sprintf('bindings[%s]', $scheme), 'an array with an adapter key');
+        throw new InvalidSettingsStructureException($path, 'an array with an adapter key');
       }
-      $this->validateBindingShape(sprintf('bindings[%s]', $scheme), $binding);
-      if (!preg_match(self::ADAPTER_ID_PATTERN, (string) $binding['adapter'])) {
-        throw new InvalidAdapterIdException((string) $binding['adapter']);
-      }
+      $this->validateBindingShape($path, $binding);
     }
 
     foreach ((array) ($layer['adapters'] ?? []) as $adapterId => $definition) {
       if (!preg_match(self::ADAPTER_ID_PATTERN, (string) $adapterId)) {
         throw new InvalidAdapterIdException((string) $adapterId);
       }
+      $defPath = sprintf('adapters[%s]', $adapterId);
       if (!is_array($definition)) {
-        throw new InvalidSettingsStructureException(sprintf('adapters[%s]', $adapterId), 'an array with a plugin key');
+        throw new InvalidSettingsStructureException($defPath, 'an array with a plugin key');
       }
-      $this->validateDefinitionShape(sprintf('adapters[%s]', $adapterId), $definition);
+      $this->validateDefinitionShape($defPath, $definition);
     }
   }
 
   /**
    * Checks binding entry types (adapter string plus optional typed flags).
+   *
+   * @param string $path
+   *   The settings path prefix for error messages.
+   * @param array $binding
+   *   The binding entry.
    */
   private function validateBindingShape(string $path, array $binding): void {
     if (!isset($binding['adapter']) || !is_string($binding['adapter'])) {
@@ -220,6 +236,11 @@ class SettingsValidator {
 
   /**
    * Checks adapter definition entry types (plugin string, optional config).
+   *
+   * @param string $path
+   *   The settings path prefix for error messages.
+   * @param array $definition
+   *   The adapter definition entry.
    */
   private function validateDefinitionShape(string $path, array $definition): void {
     if (!isset($definition['plugin']) || !is_string($definition['plugin'])) {
@@ -269,6 +290,12 @@ class SettingsValidator {
 
   /**
    * TRUE when the resolved path is the app root or below it.
+   *
+   * @param string $resolved
+   *   The resolved root path.
+   *
+   * @return bool
+   *   Whether containment inside the webroot holds.
    */
   private function isInsideAppRoot(string $resolved): bool {
     return $resolved === $this->appRoot || str_starts_with($resolved, $this->appRoot . '/');
