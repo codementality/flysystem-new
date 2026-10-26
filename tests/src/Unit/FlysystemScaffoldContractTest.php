@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
@@ -16,11 +18,9 @@ use Symfony\Component\Yaml\Yaml;
  * dev-only package), and the M1 scope guard — the module contributes ZERO
  * services tagged `stream_wrapper` and no call path reaches
  * stream_wrapper_register().
- *
- * @group flysystem
- *
- * @coversNothing
  */
+#[Group('flysystem')]
+#[CoversNothing]
 final class FlysystemScaffoldContractTest extends TestCase {
 
   /**

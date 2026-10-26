@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\flysystem\Tests\Functional;
 
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
@@ -16,14 +17,15 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * the registered stream wrapper set and the stream_wrapper_manager scheme
  * registry are IDENTICAL across the disable/re-enable cycle (the module must
  * register nothing — M1 scope guard), and the site still serves pages.
- *
- * @group flysystem
  */
+#[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
 final class FlysystemScaffoldTest extends BrowserTestBase {
 
   /**
    * The theme under test.
+   *
+   * @var string
    */
   protected $defaultTheme = 'stark';
 
@@ -42,24 +44,27 @@ final class FlysystemScaffoldTest extends BrowserTestBase {
     $module_handler = $this->container->get('module_handler');
     $extension_list = $this->container->get('extension.list.module');
     $this->assertTrue($extension_list->exists('flysystem'), 'The flysystem module is discoverable.');
-    $this->assertTrue($module_handler->isVisible('flysystem'), 'The module is enabled by the fresh install.');
+    $this->assertTrue($module_handler->moduleExists('flysystem'), 'The module is enabled by the fresh install.');
     $this->assertArrayHasKey('flysystem', $this->config('core.extension')->get('module') ?? [], 'The module is recorded in core.extension.');
 
     $wrappers = stream_get_wrappers();
     sort($wrappers);
-    $schemes = array_keys($this->container->get('stream_wrapper_manager')->getInfo());
+    $schemes = array_keys($this->container->get('stream_wrapper_manager')->getWrappers());
     sort($schemes);
 
     // Disable.
     $this->container->get('module_installer')->uninstall(['flysystem']);
-    $this->assertFalse($module_handler->isVisible('flysystem'), 'The module disables cleanly.');
+    $this->container = \Drupal::getContainer();
+    $module_handler = $this->container->get('module_handler');
+    $this->assertFalse($module_handler->moduleExists('flysystem'), 'The module disables cleanly.');
     $this->assertArrayNotHasKey('flysystem', $this->config('core.extension')->get('module') ?? [], 'Disabling removes the module from core.extension.');
 
     $this->assertNativeBehaviorPreserved($wrappers, $schemes, 'after uninstall');
 
     // Re-enable.
-    $this->container->get('module_installer')->install(['flysystem']);
-    $this->assertTrue($module_handler->isVisible('flysystem'), 'The module re-enables cleanly on the same site.');
+    \Drupal::service('module_installer')->install(['flysystem']);
+    $this->container = \Drupal::getContainer();
+    $this->assertTrue($this->container->get('module_handler')->moduleExists('flysystem'), 'The module re-enables cleanly on the same site.');
 
     $this->assertNativeBehaviorPreserved($wrappers, $schemes, 'after re-install');
 
@@ -82,7 +87,7 @@ final class FlysystemScaffoldTest extends BrowserTestBase {
     sort($actual_wrappers);
     $this->assertSame($expected_wrappers, $actual_wrappers, "The module cycle changed registered stream wrappers ($moment) — M1 must register none.");
 
-    $actual_schemes = array_keys($this->container->get('stream_wrapper_manager')->getInfo());
+    $actual_schemes = array_keys($this->container->get('stream_wrapper_manager')->getWrappers());
     sort($actual_schemes);
     $this->assertSame($expected_schemes, $actual_schemes, "The module cycle changed the stream_wrapper_manager scheme registry ($moment) — M1 must contribute zero stream_wrapper services.");
   }
