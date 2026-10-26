@@ -288,6 +288,19 @@ final class BindingResolverPrecedenceTest extends TestCase {
 
   /**
    * Verifies remote backends are exempt from containment through wiring.
+   *
+   * D9 states the webroot containment rule applies to local-mode adapters
+   * only — a remote backend has no webroot concept, and "serve public
+   * files from outside the docroot" is legitimately expressed as a
+   * remote binding (that pairing is the module's primary use case: an
+   * S3-backed public://). #5 tested the exemption inside the validator
+   * with a fake callable; THIS test proves the resolver's wiring feeds
+   * the validator the right locality answer for the binding's plugin —
+   * 's3' resolves to remote and the public binding passes. The exemption
+   * and the rule are a matched pair: without this test, wiring that
+   * wrongly reported every plugin as local would pass the neighboring
+   * lazy-timing test while rejecting every real remote public binding at
+   * resolve time — the module's headline feature failing in production.
    */
   public function testRemoteBindingResolvesPubliclyWithExternalConfig(): void {
     $settings = [
