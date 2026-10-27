@@ -143,6 +143,16 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
   /**
    * Returns the target part of a URI for this wrapper's scheme.
    *
+   * The seam's path contract: this strips ONLY the scheme and erroneous
+   * edge slashes — it deliberately does not collapse '..' segments,
+   * translate backslashes, or decode percent-escapes. Every one of those
+   * decisions belongs to the operator's own normalizer, which runs before
+   * the backend sees a path and is the single place the traversal guard
+   * lives. Doing any of it here would put the same policy in two places
+   * and let a raw hostile path (a leading '..' an attacker wrote
+   * directly, a control character) slip past the guard to the storage
+   * layer; passing the path down untouched is what keeps one wall.
+   *
    * @param string|null $uri
    *   URI to be parsed. If omitted, the URI currently set is used.
    *
