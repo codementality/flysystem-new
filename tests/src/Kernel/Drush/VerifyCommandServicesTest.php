@@ -8,7 +8,6 @@ use Consolidation\AnnotatedCommand\CommandFileDiscovery;
 use Consolidation\AnnotatedCommand\CommandResult;
 use Drupal\flysystem\Drush\Commands\FlysystemVerifyCommand;
 use Drupal\flysystem\Verification\BindingVerifier;
-use Drupal\flysystem\Verification\StatusReporter;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -60,7 +59,7 @@ final class VerifyCommandServicesTest extends KernelTestBase {
       'public' => ['driver' => 'local', 'config' => ['root' => 'sites/default/files']],
     ]);
 
-    $result = $this->command()->verify(['format' => 'table', 'strict' => FALSE]);
+    $result = $this->command()->verify(NULL, ['format' => 'table', 'strict' => FALSE]);
     self::assertInstanceOf(CommandResult::class, $result);
 
     $rows = array_values($result->getOutputData()->getArrayCopy());
@@ -72,10 +71,10 @@ final class VerifyCommandServicesTest extends KernelTestBase {
   /**
    * A broken binding yields a finding row instead of an exception.
    */
-  public function testBrokenBindingBecomesAFindingRow(): void {
+  public function testBrokenBindingBecomesFindingRow(): void {
     $this->rebuildWithBindings(['public' => ['driver' => 'nosuchplugin']]);
 
-    $result = $this->command()->verify(['format' => 'table', 'strict' => FALSE]);
+    $result = $this->command()->verify(NULL, ['format' => 'table', 'strict' => FALSE]);
     self::assertSame(0, $result->getExitCode(), 'Reporting the problem is not itself a failure.');
 
     $rows = array_values($result->getOutputData()->getArrayCopy());
@@ -96,7 +95,7 @@ final class VerifyCommandServicesTest extends KernelTestBase {
       'temporary' => ['driver' => 'local', 'config' => ['root' => 'sites/default/files']],
     ]);
 
-    $rows = $this->command()->verify(['format' => 'table', 'strict' => FALSE])->getOutputData()->getArrayCopy();
+    $rows = $this->command()->verify(NULL, ['format' => 'table', 'strict' => FALSE])->getOutputData()->getArrayCopy();
     $command_lines = [];
     foreach ($rows as $row) {
       if ($row['severity'] !== 'sound') {
@@ -104,7 +103,7 @@ final class VerifyCommandServicesTest extends KernelTestBase {
       }
     }
 
-    /** @var StatusReporter $reporter */
+    /** @var \Drupal\flysystem\Verification\StatusReporter $reporter */
     $reporter = $this->container->get('flysystem.status_reporter');
     $entry = $reporter->buildEntry();
     self::assertIsArray($entry['value'], 'A broken site must render a problem list on the status report.');
@@ -155,7 +154,10 @@ final class VerifyCommandServicesTest extends KernelTestBase {
       "\\Drupal\\flysystem\\Drush",
     );
 
-    self::assertContains(FlysystemVerifyCommand::class, $classes, 'The command must be discoverable by drush at exactly the path and namespace drush searches.');
+    // Discovery maps file paths to namespaced class names (with a leading
+    // separator); normalize the values before comparing against ::class.
+    $normalized = array_map(static fn(string $class): string => ltrim($class, '\\'), array_values($classes));
+    self::assertContains(FlysystemVerifyCommand::class, $normalized, 'The command must be discoverable by drush at exactly the path and namespace drush searches.');
   }
 
 }
