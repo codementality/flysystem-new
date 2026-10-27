@@ -60,28 +60,42 @@ errors when the scheme is used, not at container build.
 - `link_handling` (optional): `disallow` (default) refuses symlinks when
   traversing listings; `skip` omits symlinked entries.
 
-### Advanced: sharing one adapter definition across schemes
+### Advanced: several schemes on one definition
 
-Sites that point several schemes at one adapter definition, or that want
-per-scheme overrides of a shared definition, can use the two-layer form
-instead — an `adapters` section keyed by adapter id, and a `bindings`
-section keyed by scheme:
+"Sharing one adapter definition" solves a repetition problem. In the
+flat form, every scheme carries its own complete `driver` + `config`
+block — correct when each scheme has its own backend, but if two or
+three schemes are meant to use the *same* backend configuration, that
+block is copy-pasted once per scheme and each copy has to be edited
+separately forever after.
+
+The two-layer form writes the configuration once and lists the schemes
+that use it: an `adapters` section keyed by adapter id (the definition),
+and a `bindings` section keyed by scheme (which scheme uses which
+definition):
 
 ```php
 $settings['flysystem'] = [
+  // One definition, written once.
   'adapters' => [
     'uploads' => ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']],
   ],
   'bindings' => [
+    // Two schemes deliberately on the same storage: one definition,
+    // one place to edit.
     'public' => ['adapter' => 'uploads'],
-    'shared' => ['adapter' => 'uploads', 'config' => ['root' => 'sites/default/shared']],
+    'legacy' => ['adapter' => 'uploads'],
+    // A binding may also override individual config keys for just its
+    // own scheme; here, same plugin and options, different root.
+    'exports' => ['adapter' => 'uploads', 'config' => ['root' => 'sites/default/exports']],
   ],
 ];
 ```
 
-Both forms are accepted, separately or combined (a two-layer `bindings`
-entry takes precedence for its scheme); every consumer sees one normalized
-result.
+If every scheme has its own backend configuration, this form adds
+nothing — use the flat shape. Both forms are accepted, separately or
+combined (a `bindings` entry for a scheme wins over a flat entry of the
+same name); every consumer sees one normalized result either way.
 
 ## Schemes and core-native coexistence
 
