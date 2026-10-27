@@ -56,6 +56,8 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    * not application state, and nothing in this class reads it.
    *
    * @var resource|null
+   *
+   * @link https://www.php.net/manual/en/class.streamwrapper.php#streamwrapper.props.context
    */
   public $context;
 
