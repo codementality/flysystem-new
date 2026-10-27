@@ -10,14 +10,17 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Tests the module scaffold contract: packaging and the wrapper guard.
+ * Tests the module scaffold contract: packaging and the wrapper guards.
  *
  * Asserts the scaffold packaging as data: machine name / namespace
  * `flysystem` / `Drupal\flysystem`, the module's own composer.json runtime
  * requires (league/flysystem ^3 + flysystem-local; memory stays a host
- * dev-only package), and the scope guard — the module contributes ZERO
- * services tagged `stream_wrapper` and no call path reaches
- * stream_wrapper_register().
+ * dev-only package), and the wrapper discipline: the module's own YAML
+ * files contribute zero services tagged `stream_wrapper` (wrapper
+ * registration happens conditionally at container build time from
+ * settings, never statically), and no production code path ever calls
+ * PHP's own registration primitive directly — registration flows only
+ * through core's wrapper manager.
  */
 #[Group('flysystem')]
 #[CoversNothing]
