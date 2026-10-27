@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\StreamWrapper;
 
+use League\Flysystem\DirectoryListing;
+use League\Flysystem\DirectoryAttributes;
 use Drupal\Core\Site\Settings;
 use Drupal\flysystem\Exception\UnknownAdapterPluginException;
 use Drupal\flysystem\Factory\OperatorFactory;
@@ -50,17 +52,23 @@ final class WrapperMetadataOperationsTest extends TestCase {
   private array $calls = [];
 
   /**
+   * File fixtures keyed by operator path.
+   *
    * @var array<string, array{size: int, mtime: int, visibility: string}>
    */
   private array $files = [];
 
   /**
+   * Existing directory paths.
+   *
    * @var string[]
    */
   private array $dirs = [];
 
   /**
-   * @var array<string, string[]>
+   * Children per directory: name => is-directory.
+   *
+   * @var array<string, array<string, bool>>
    */
   private array $children = [];
 
@@ -111,13 +119,24 @@ final class WrapperMetadataOperationsTest extends TestCase {
    */
   private function wrapperWith(FilesystemOperator $operator): FlysystemPublicStream {
     $factory = $this->createMock(OperatorFactory::class);
+    // definitionFor answers the same bundle the real factory builds: the
+    // operator plus locality/config the metadata questions consume. The
+    // call log records that the wrapper asked the factory, not the
+    // resolver or a raw adapter.
     $factory->method('definitionFor')->willReturnCallback(
-      function (string $scheme): ?array {
+      function (string $scheme) use ($operator): ?array {
         $this->calls[] = 'definitionFor';
-        return $this->unbound ? NULL : $this->definition;
+        if ($this->unbound) {
+          return NULL;
+        }
+        return [
+          'operator' => $operator,
+          'plugin' => $this->definition['plugin'],
+          'config' => $this->definition['config'],
+          'local' => $this->definition['local'],
+        ];
       },
     );
-    $factory->method('operatorFor')->willReturn($this->unbound ? NULL : $operator);
     $container = $this->createMock(ContainerInterface::class);
     $container->method('get')->with('flysystem.operator_factory')->willReturn($factory);
     $container->method('getParameter')->with('app.root')->willReturn('/srv/app');
@@ -177,11 +196,14 @@ final class WrapperMetadataOperationsTest extends TestCase {
         $ask('listContents');
         $entries = [];
         foreach ($this->children[$prefix] ?? [] as $name => $isDir) {
+          // A real adapter lists paths relative to the bound ROOT, not
+          // to the queried prefix: shelf/a.txt, not a.txt.
+          $listed = $prefix === '' ? $name : $prefix . '/' . $name;
           $entries[] = $isDir
-            ? new \League\Flysystem\DirectoryAttributes($name)
-            : new FileAttributes($name);
+            ? new DirectoryAttributes($listed)
+            : new FileAttributes($listed);
         }
-        return new \ArrayIterator($entries);
+        return new DirectoryListing($entries);
       },
     );
     $operator->method('createDirectory')->willReturnCallback(
@@ -246,8 +268,8 @@ final class WrapperMetadataOperationsTest extends TestCase {
     self::assertSame(1700000000, $stat[8], 'atime synthesized as mtime');
     self::assertSame(1700000000, $stat[10], 'ctime likewise');
     self::assertSame(1, $stat[3], 'link count concrete');
-    self::assertGreaterThan(0, $stat[2] & S_IFREG, 'regular-file type bit');
-    self::assertSame(0, $stat[2] & S_IFDIR);
+    self::assertGreaterThan(0, $stat[2] & 0100000, 'regular-file type bit');
+    self::assertSame(0, $stat[2] & 0040000);
     self::assertSame(getmyuid(), $stat[4]);
     self::assertSame(getmygid(), $stat[5]);
     self::assertSame(42, $stat['size']);
@@ -265,7 +287,8 @@ final class WrapperMetadataOperationsTest extends TestCase {
 
     $this->wrapper()->url_stat('public://r.txt', STREAM_URL_STAT_QUIET);
 
-    $metadata = array_values(array_filter($this->calls, static fn(string $c): bool => !in_array($c, ['definitionFor', 'fileExists', 'directoryExists'], TRUE)));
+    $ignore = ['definitionFor', 'fileExists', 'directoryExists'];
+    $metadata = array_values(array_filter($this->calls, static fn(string $c): bool => !in_array($c, $ignore, TRUE)));
     self::assertSame(['fileSize', 'lastModified', 'visibility'], $metadata);
     self::assertNotContains('read', $this->calls, 'metadata never pulls content');
     self::assertNotContains('write', $this->calls);
@@ -288,8 +311,8 @@ final class WrapperMetadataOperationsTest extends TestCase {
     $stat = $this->wrapper()->url_stat('public://gallery', STREAM_URL_STAT_QUIET);
 
     self::assertIsArray($stat);
-    self::assertGreaterThan(0, $stat[2] & S_IFDIR);
-    self::assertSame(0, $stat[2] & S_IFREG);
+    self::assertGreaterThan(0, $stat[2] & 0040000);
+    self::assertSame(0, $stat[2] & 0100000);
     self::assertSame(0, $stat[7], 'directories do not report a file size');
     self::assertNotContains('fileSize', $this->calls);
   }
@@ -310,7 +333,11 @@ final class WrapperMetadataOperationsTest extends TestCase {
     $stat = $this->wrapper()->url_stat('public://b.txt', 0);
     self::assertSame(0600, $stat[2] & 0777, 'private file is owner-only');
 
-    $this->definition = ['plugin' => 'local', 'config' => ['unix_visibility' => ['file' => ['public' => 0600, 'private' => 0600]]], 'local' => TRUE];
+    $this->definition = [
+      'plugin' => 'local',
+      'config' => ['unix_visibility' => ['file' => ['public' => 0600, 'private' => 0600]]],
+      'local' => TRUE,
+    ];
     $this->files['c.txt'] = ['size' => 1, 'mtime' => 2, 'visibility' => 'public', 'contents' => 'x'];
     $stat = $this->wrapper()->url_stat('public://c.txt', 0);
     self::assertSame(0600, $stat[2] & 0777, "the binding's configured map is the authority");
@@ -337,7 +364,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
     self::assertIsArray($stat);
     self::assertSame(0, $stat[7], 'a size that cannot be answered reports zero, not null');
     self::assertIsInt($stat[9]);
-    self::assertGreaterThan(0, $stat[2] & S_IFREG, 'the type bit still answers from fileExists');
+    self::assertGreaterThan(0, $stat[2] & 0100000, 'the type bit still answers from fileExists');
     foreach (range(0, 12) as $index) {
       self::assertIsInt($stat[$index], "no field may be null even when metadata fails: $index");
     }
@@ -353,7 +380,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
     $stat = $this->wrapper()->url_stat('public://o.txt', 0);
 
     self::assertSame(0644, $stat[2] & 0777, 'a store with no mode concept reports the portable public file mode');
-    self::assertGreaterThan(0, $stat[2] & S_IFREG);
+    self::assertGreaterThan(0, $stat[2] & 0100000);
   }
 
   /**
@@ -383,7 +410,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * mkdir creates through the operator; refusal surfaces as FALSE.
+   * Mkdir creates through the operator; refusal surfaces as FALSE.
    */
   public function testMkdirCreatesAndReportsFailure(): void {
     self::assertTrue($this->wrapper()->mkdir('public://new/dir', 0775, STREAM_MKDIR_RECURSIVE));
@@ -394,7 +421,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * rmdir refuses a non-empty directory; only empties are removed.
+   * Rmdir refuses a non-empty directory; only empties are removed.
    */
   public function testRmdirRefusesNonEmpty(): void {
     $this->dirs[] = 'stuff';
@@ -411,7 +438,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * unlink removes existing files; missing paths fail, never no-op true.
+   * Unlink removes existing files; missing paths fail, never no-op true.
    */
   public function testUnlinkSemantics(): void {
     $this->files['gone.txt'] = ['size' => 1, 'mtime' => 1, 'visibility' => 'public', 'contents' => 'x'];
@@ -422,7 +449,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * rename routes to the operator's native move — server-side, not bytes.
+   * Rename routes to the operator's native move — server-side, not bytes.
    */
   public function testRenameUsesNativeMove(): void {
     $this->files['a.txt'] = ['size' => 1, 'mtime' => 1, 'visibility' => 'public', 'contents' => 'payload'];
@@ -465,7 +492,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * touch preserves content and re-asks existence — no raw path work.
+   * Touch preserves content and re-asks existence — no raw path work.
    */
   public function testTouchPreservesAndRoutesThroughOperator(): void {
     $this->files['t.txt'] = ['size' => 4, 'mtime' => 1700000000, 'visibility' => 'public', 'contents' => 'same'];
@@ -480,7 +507,7 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * chmod/chown have no operator answer: refused, never half-applied.
+   * Chmod/chown have no operator answer: refused, never half-applied.
    */
   public function testOwnerAndAccessMetadataRefused(): void {
     self::assertFalse($this->wrapper()->stream_metadata('public://t.txt', STREAM_META_ACCESS, 0700));
