@@ -211,7 +211,7 @@ final class MemoryAdapterPluginTest extends TestCase {
 
   /**
    * Builds a factory bound to the public scheme on one plugin.
-
+   *
    * The root 'store' is meaningful only to the local backend; memory
    * ignores it by design.
    */
