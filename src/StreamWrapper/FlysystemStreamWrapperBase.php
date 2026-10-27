@@ -1,0 +1,342 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\flysystem\StreamWrapper;
+
+use Drupal\Core\StreamWrapper\StreamWrapperInterface;
+use Drupal\Core\StreamWrapper\StreamWrapperManager;
+use League\Flysystem\FilesystemOperator;
+
+// phpcs:disable Drupal.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
+// The stream operation method names below (stream_open, dir_readdir,
+// url_stat, and friends) are dictated by PHP's stream wrapper protocol:
+// the engine calls them by exactly these names. Drupal core's own wrapper
+// base class declares the same names and faces the same rule.
+
+/**
+ * Shared machinery for the Flysystem-backed storage wrappers.
+ *
+ * PHP instantiates stream wrappers itself, with no dependency injection,
+ * so this class has a parameterless constructor and reaches the storage
+ * factory lazily at the moment a file operation actually needs it. A
+ * scheme whose binding is broken therefore behaves exactly as the
+ * foundation promises: container build and install stay silent, and the
+ * typed configuration error surfaces on first touch of that scheme.
+ *
+ * Storage operations are delegated to the filesystem operator built for
+ * this wrapper's scheme, never to an adapter directly: routing through
+ * the operator is what engages its path-traversal guard.
+ */
+abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
+
+  /**
+   * Stream context resource.
+   *
+   * PHP sets this on every stream wrapper object it creates; core's own
+   * wrappers declare it for the same reason (LocalStream). Omitting it
+   * triggers a dynamic-property deprecation the moment a stream opens.
+   *
+   * @var resource|null
+   */
+  public $context;
+
+  /**
+   * The full URI currently set on this instance.
+   *
+   * @var string|null
+   */
+  protected $uri;
+
+  /**
+   * The operator for this wrapper's scheme, resolved on first use.
+   *
+   * @var \League\Flysystem\FilesystemOperator|null
+   */
+  protected ?FilesystemOperator $operator = NULL;
+
+  /**
+   * Whether operator resolution has already been attempted for this scheme.
+   *
+   * @var bool
+   */
+  protected bool $operatorResolved = FALSE;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUri($uri) {
+    $this->uri = $uri;
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getUri() {
+    return $this->uri;
+  }
+
+  /**
+   * Returns the target part of a URI for this wrapper's scheme.
+   *
+   * @param string|null $uri
+   *   URI to be parsed. If omitted, the URI currently set is used.
+   *
+   * @return string
+   *   The target (the part after "scheme://"), with erroneous leading or
+   *   trailing slashes trimmed.
+   */
+  protected function getTarget($uri = NULL) {
+    if (empty($uri)) {
+      $uri = $this->getUri();
+    }
+    return StreamWrapperManager::getTarget($uri) ?? '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function dirname($uri = NULL) {
+    $uri = $uri ?: $this->getUri();
+    [$scheme] = explode('://', $uri, 2);
+    $target = $this->getTarget($uri);
+    $dirname = dirname($target);
+
+    if ($dirname == '.') {
+      $dirname = '';
+    }
+
+    return $scheme . '://' . $dirname;
+  }
+
+  /**
+   * Resolves the storage operator for this wrapper's scheme, once.
+   *
+   * Resolution happens at operation time, never earlier: the storage
+   * factory validates the binding lazily and raises typed errors for the
+   * touched scheme only.
+   *
+   * @return \League\Flysystem\FilesystemOperator|null
+   *   The operator, or NULL when this scheme resolves to core-native
+   *   storage.
+   *
+   * @throws \Drupal\flysystem\Exception\FlysystemConfigExceptionInterface
+   *   When the binding for this scheme is invalid; implementations let
+   *   this propagate until the graceful-handling design lands.
+   */
+  protected function resolveOperator(): ?FilesystemOperator {
+    if (!$this->operatorResolved) {
+      $scheme = static::getSchemeName();
+      /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
+      $factory = \Drupal::service('flysystem.operator_factory');
+      $this->operator = $factory->operatorFor($scheme);
+      $this->operatorResolved = TRUE;
+    }
+    return $this->operator;
+  }
+
+  /**
+   * The scheme this wrapper class serves, for operator resolution.
+   *
+   * @return string
+   *   The scheme name, e.g. "public".
+   */
+  abstract public static function getSchemeName(): string;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getName() {
+    // Translated scheme labels are part of the naming and URL work for
+    // this seam; a storage wrapper answers with its scheme name until then.
+    return static::getSchemeName();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getDescription() {
+    return '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getExternalUrl() {
+    // Storage wrappers do not claim URL behavior yet; see the naming and
+    // URL work for this seam.
+    return '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function realpath() {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_open($path, $mode, $options, &$opened_path) {
+    // Touching the scheme resolves its binding; an invalid binding raises
+    // its typed error here rather than at container build.
+    $this->resolveOperator();
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_read($count) {
+    return '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_write($data) {
+    return 0;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_tell() {
+    return 0;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_eof() {
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_seek($offset, $whence = SEEK_SET) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_flush() {
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_truncate($new_size) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_close() {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_cast($cast_as) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_lock($operation) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_set_option($option, $arg1, $arg2) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_metadata($path, $option, $value) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_stat() {
+    return [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function url_stat($path, $flags) {
+    return [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function mkdir($path, $mode, $options) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function rmdir($path, $options) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function unlink($path) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function rename($path_from, $path_to) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function dir_opendir($path, $options) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function dir_readdir() {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function dir_rewinddir() {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function dir_closedir() {
+    return FALSE;
+  }
+
+}
