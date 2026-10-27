@@ -12,7 +12,7 @@ use Drupal\flysystem\Exception\UnknownAdapterPluginException;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
-use Drupal\flysystem\Plugin\FlysystemAdapter\Memory;
+use Drupal\flysystem_memory\Plugin\FlysystemAdapter\Memory;
 use Drupal\flysystem\Plugin\FlysystemAdapterInterface;
 use Drupal\flysystem\Plugin\FlysystemAdapterManager;
 use Drupal\flysystem\Plugin\LocalStorageInterface;

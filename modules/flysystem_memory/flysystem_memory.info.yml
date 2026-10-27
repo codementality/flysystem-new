@@ -1,0 +1,8 @@
+name: 'Flysystem memory (testing)'
+type: module
+description: 'Provides the in-memory adapter plugin used by the Flysystem test suite to prove adapter-agnosticism. Testing-only: hidden from the interface and never a production backend.'
+core_version_requirement: '^11'
+package: 'Testing'
+hidden: true
+dependencies:
+  - flysystem:flysystem

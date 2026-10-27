@@ -3,3 +3,5 @@ type: module
 description: 'Flysystem-backed storage factory foundation for Drupal file schemes. M1 ships the factory layer only: no stream wrappers are registered.'
 core_version_requirement: '^11'
 package: 'File systems'
+test_dependencies:
+  - flysystem:flysystem_memory

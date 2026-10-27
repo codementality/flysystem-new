@@ -101,7 +101,7 @@ final class CommentsAreSelfContainedTest extends TestCase {
    */
   private function shippedFiles(): array {
     $files = [];
-    $roots = [$this->moduleRoot . '/src', $this->moduleRoot . '/tests'];
+    $roots = [$this->moduleRoot . '/src', $this->moduleRoot . '/tests', $this->moduleRoot . '/modules'];
     foreach ($roots as $root) {
       $iterator = new \RecursiveIteratorIterator(
         new \RecursiveCallbackFilterIterator(

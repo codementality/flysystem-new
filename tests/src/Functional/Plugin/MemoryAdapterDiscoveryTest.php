@@ -36,7 +36,7 @@ final class MemoryAdapterDiscoveryTest extends BrowserTestBase {
    *
    * @var string[]
    */
-  protected static $modules = ['flysystem'];
+  protected static $modules = ['flysystem', 'flysystem_memory'];
 
   /**
    * Verifies the manager service discovers both shipped adapter plugins.
