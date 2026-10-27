@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\StreamWrapper;
 
+use Drupal\Core\Site\Settings;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
@@ -13,6 +14,9 @@ use Drupal\flysystem\Exception\FlysystemPluginNotFoundException;
 use League\Flysystem\FilesystemException;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
+use Drupal\flysystem\Util\LexicalPath;
+use League\Flysystem\FilesystemOperationFailed;
+use League\Flysystem\Visibility;
 
 // phpcs:disable Drupal.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
 // The stream operation method names below (stream_open, dir_readdir,
@@ -52,6 +56,16 @@ use Psr\Log\LoggerInterface;
 abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
   use StringTranslationTrait;
+
+  /**
+   * Portable public file mode for stores without a unix mode concept.
+   */
+  private const FALLBACK_FILE_MODE = 0644;
+
+  /**
+   * Portable public directory mode for stores without a unix mode concept.
+   */
+  private const FALLBACK_DIR_MODE = 0755;
 
   /**
    * Stream context resource.
@@ -281,6 +295,119 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
   }
 
   /**
+   * The resolved storage bundle for this scheme, or NULL if core-native.
+   *
+   * Carries the operator plus the facts metadata and path questions need
+   * (plugin id, merged config, and whether the backend serves local
+   * storage), all from one lazy resolution through the factory. Memoized
+   * per instance the same way the operator is.
+   *
+   * @return array{operator: \League\Flysystem\FilesystemOperator, plugin: string, config: array, local: bool}|null
+   *   The bundle, or NULL when the scheme resolves to core-native storage.
+   */
+  protected function storage(): ?array {
+    if (!$this->storageResolved) {
+      $scheme = static::getSchemeName();
+      /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
+      $factory = \Drupal::service('flysystem.operator_factory');
+      $this->storageBundle = $factory->definitionFor($scheme);
+      $this->storageResolved = TRUE;
+      $this->operator = $this->storageBundle['operator'] ?? NULL;
+    }
+    return $this->storageBundle;
+  }
+
+  /**
+   * Whether the storage bundle has been resolved for this instance.
+   *
+   * @var bool
+   */
+  protected bool $storageResolved = FALSE;
+
+  /**
+   * The memoized storage bundle.
+   *
+   * @var array<string, mixed>|null
+   */
+  protected ?array $storageBundle = NULL;
+
+  /**
+   * The unix permission bits a visibility answer maps to for this binding.
+   *
+   * A local binding reads its modes the way the local plugin applies them
+   * on write — an explicit unix_visibility map wins, otherwise Drupal's
+   * long-standing file_chmod settings. A store with no mode concept falls
+   * back to the portable public bits. Public/private visibility is the
+   * only permission model the storage abstraction expresses, so the
+   * answer is a visibility-to-mode map, never a raw stat of a path.
+   *
+   * @param array<string, mixed> $storage
+   *   The resolved storage bundle.
+   * @param string $visibility
+   *   The operator's visibility answer for the path.
+   * @param bool $directory
+   *   TRUE when answering for a directory.
+   *
+   * @return int
+   *   The 0777 permission bits.
+   */
+  protected function modeBits(array $storage, string $visibility, bool $directory): int {
+    $map = $storage['config']['unix_visibility'] ?? $storage['config']['permissions'] ?? NULL;
+    if (is_array($map) && isset($map[$directory ? 'dir' : 'file'][$visibility])) {
+      return (int) $map[$directory ? 'dir' : 'file'][$visibility];
+    }
+    if ($storage['local'] ?? FALSE) {
+      if ($directory) {
+        return $visibility === Visibility::PRIVATE ? 0700 : (int) Settings::get('file_chmod_directory', 0775);
+      }
+      return $visibility === Visibility::PRIVATE ? 0600 : (int) Settings::get('file_chmod_file', 0664);
+    }
+    return $directory ? self::FALLBACK_DIR_MODE : self::FALLBACK_FILE_MODE;
+  }
+
+  /**
+   * Builds a complete PHP stat array from answered and synthesized fields.
+   *
+   * Every field is present and concrete; missing metadata answers fall to
+   * documented defaults rather than nulls, which PHP's stat contract does
+   * not tolerate. Fields Flysystem has no concept of (atime, ctime, the
+   * inode-style extras) are filled from the answered mtime and process
+   * identity. Both numeric and named keys are populated, matching a real
+   * stat() call.
+   *
+   * @param int $typeBits
+   *   The regular-file/directory type bits for the target.
+   * @param int $size
+   *   The byte count (zero for directories and unanswerable backends).
+   * @param int $mtime
+   *   The modification time, or zero when unknown.
+   * @param int $mode
+   *   The 0777 permission bits.
+   *
+   * @return array<int|string, int>
+   *   The stat array.
+   */
+  protected function buildStat(int $typeBits, int $size, int $mtime, int $mode): array {
+    $fullMode = $typeBits | $mode;
+    $values = [
+      'dev' => 0,
+      'ino' => 0,
+      'mode' => $fullMode,
+      'nlink' => 1,
+      'uid' => getmyuid(),
+      'gid' => getmygid(),
+      'rdev' => 0,
+      'size' => $size,
+      'atime' => $mtime,
+      'mtime' => $mtime,
+      'ctime' => $mtime,
+      'blksize' => -1,
+      'blocks' => -1,
+    ];
+    return array_merge(array_values($values), $values);
+  }
+
+  /**
    * The scheme this wrapper class serves, for operator resolution.
    *
    * @return string
@@ -307,12 +434,23 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    * {@inheritdoc}
    */
   public function realpath() {
-    // Placeholder for the metadata ticket: canonical local paths are a
-    // storage-location question handled once in this class against the
-    // resolved operator (real for local storage, FALSE for stores with no
-    // local path — the same answer every non-local core wrapper already
-    // gives). Never a per-scheme difference.
-    return FALSE;
+    // The canonical path question exists only where paths do: a local
+    // binding answers root-joined-to-target, anchored and collapsed
+    // lexically against the app root — never realpath()-ed, which would
+    // chase symlinks and break on not-yet-created roots. A store with no
+    // local filesystem answers FALSE, the established behavior of every
+    // non-local wrapper.
+    $storage = $this->storage();
+    if ($storage === NULL || !$storage['local']) {
+      return FALSE;
+    }
+    $root = $storage['config']['root'] ?? '';
+    if (!is_string($root) || $root === '') {
+      return FALSE;
+    }
+    $target = $this->getTarget();
+    $appRoot = (string) \Drupal::getContainer()->getParameter('app.root');
+    return LexicalPath::resolve(rtrim($root, '/') . '/' . $target, $appRoot);
   }
 
   /**
@@ -566,12 +704,39 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
   /**
    * {@inheritdoc}
    *
-   * Path-level attribute changes (touch, chmod, and friends) answer with
-   * the metadata row's url_stat work; a handle refuses rather than
-   * half-applies.
+   * STREAM_META_TOUCH is honored through the whole-file contract: the
+   * file is rewritten with its own content, which moves times forward on
+   * local storage and creates an empty file when the path is missing.
+   * The specific timestamps a caller passes cannot be applied — no
+   * operator call sets them — so a requested mtime lands as the moment of
+   * the write. Owner/group/access changes have no answer in the storage
+   * abstraction at all and are refused, never half-applied.
    */
   public function stream_metadata($path, $option, $value) {
-    return FALSE;
+    if ($option !== STREAM_META_TOUCH) {
+      return FALSE;
+    }
+    $storage = $this->storage();
+    if ($storage === NULL) {
+      return FALSE;
+    }
+    $operator = $storage['operator'];
+    $target = StreamWrapperManager::getTarget($path) ?? '';
+    if ($target === '') {
+      return FALSE;
+    }
+    try {
+      if ($operator->fileExists($target)) {
+        $operator->write($target, $operator->read($target));
+      }
+      else {
+        $operator->write($target, '');
+      }
+      return TRUE;
+    }
+    catch (FilesystemOperationFailed) {
+      return FALSE;
+    }
   }
 
   /**
@@ -585,65 +750,242 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Every field is answered from a mapped operator question or a
+   * documented default: size from the fileSize getter, times from
+   * lastModified (atime/ctime, concepts Flysystem does not have, copy the
+   * mtime), the type bits from the fileExists/directoryExists pair, mode
+   * permission bits from visibility mapped through the binding's unix
+   * mode settings. A field the backend cannot answer falls to zero, never
+   * null — PHP's stat contract does not tolerate nulls, and three of the
+   * library's getters pass nullable adapter answers straight through.
    */
   public function url_stat($path, $flags) {
-    return [];
+    $storage = $this->storage();
+    if ($storage === NULL) {
+      return FALSE;
+    }
+    $operator = $storage['operator'];
+    $target = StreamWrapperManager::getTarget($path) ?? '';
+    if ($target === '') {
+      return FALSE;
+    }
+
+    try {
+      if ($operator->fileExists($target)) {
+        return $this->buildStat(
+          0100000,
+          $this->answered(fn(): int => $operator->fileSize($target), 0),
+          $this->answered(fn(): int => $operator->lastModified($target), 0),
+          $this->modeBits($storage, $this->answered(fn(): string => $operator->visibility($target), Visibility::PUBLIC), FALSE),
+        );
+      }
+      if ($operator->directoryExists($target)) {
+        return $this->buildStat(
+          0040000,
+          0,
+          $this->answered(fn(): int => $operator->lastModified($target), 0),
+          $this->modeBits($storage, $this->answered(fn(): string => $operator->visibility($target), Visibility::PUBLIC), TRUE),
+        );
+      }
+    }
+    catch (FilesystemOperationFailed) {
+      // Existence itself failed; treat as missing.
+      return FALSE;
+    }
+    return FALSE;
+  }
+
+  /**
+   * Asks one metadata question, falling back when the backend declines.
+   *
+   * @param callable $ask
+   *   The operator call answering the field.
+   * @param int|string $default
+   *   The concrete fallback value.
+   *
+   * @return int|string
+   *   The answer or the fallback.
+   */
+  private function answered(callable $ask, int|string $default): int|string {
+    try {
+      return $ask();
+    }
+    catch (FilesystemOperationFailed) {
+      return $default;
+    }
   }
 
   /**
    * {@inheritdoc}
+   *
+   * The binding's configured visibility governs created directory modes —
+   * the same rule the local plugin applies on writes — so a PHP mode
+   * argument is not consulted; this is the documented mode-authority
+   * deviation. Creation itself is the library's recursive mkdir.
    */
   public function mkdir($path, $mode, $options) {
-    return FALSE;
+    $storage = $this->storage();
+    if ($storage === NULL) {
+      return FALSE;
+    }
+    $target = StreamWrapperManager::getTarget($path) ?? '';
+    if ($target === '') {
+      return FALSE;
+    }
+    try {
+      $storage['operator']->createDirectory($target);
+      return TRUE;
+    }
+    catch (FilesystemOperationFailed) {
+      return FALSE;
+    }
   }
 
   /**
    * {@inheritdoc}
+   *
+   * A real filesystem refuses to remove a directory that still holds
+   * files; the library's delete-by-prefix would silently wipe contents,
+   * so the emptiness is checked first and a refusal never asks for the
+   * removal at all.
    */
   public function rmdir($path, $options) {
-    return FALSE;
+    $storage = $this->storage();
+    if ($storage === NULL) {
+      return FALSE;
+    }
+    $operator = $storage['operator'];
+    $target = StreamWrapperManager::getTarget($path) ?? '';
+    if ($target === '' || !$operator->directoryExists($target)) {
+      return FALSE;
+    }
+    try {
+      foreach ($operator->listContents($target, FALSE) as $ignored) {
+        return FALSE;
+      }
+      $operator->deleteDirectory($target);
+      return TRUE;
+    }
+    catch (FilesystemOperationFailed) {
+      return FALSE;
+    }
   }
 
   /**
    * {@inheritdoc}
    */
   public function unlink($path) {
-    return FALSE;
+    $storage = $this->storage();
+    if ($storage === NULL) {
+      return FALSE;
+    }
+    $operator = $storage['operator'];
+    $target = StreamWrapperManager::getTarget($path) ?? '';
+    if ($target === '' || !$operator->fileExists($target)) {
+      return FALSE;
+    }
+    try {
+      $operator->delete($target);
+      return TRUE;
+    }
+    catch (FilesystemOperationFailed) {
+      return FALSE;
+    }
   }
 
   /**
    * {@inheritdoc}
+   *
+   * Same-operator rename is the adapter's native move — server-side, no
+   * bytes pulled through userland, which is also what gives object stores
+   * their copy-free relocation later.
    */
   public function rename($path_from, $path_to) {
-    return FALSE;
+    $storage = $this->storage();
+    if ($storage === NULL) {
+      return FALSE;
+    }
+    $operator = $storage['operator'];
+    $from = StreamWrapperManager::getTarget($path_from) ?? '';
+    $to = StreamWrapperManager::getTarget($path_to) ?? '';
+    if ($from === '' || $to === '' || !$operator->fileExists($from)) {
+      return FALSE;
+    }
+    try {
+      $operator->move($from, $to);
+      return TRUE;
+    }
+    catch (FilesystemOperationFailed) {
+      return FALSE;
+    }
   }
+
+  /**
+   * The open directory's entry list.
+   *
+   * Dot entries lead, matching what a real folder's readdir yields —
+   * PHP injects nothing for user-space wrappers, so parity means
+   * answering them here.
+   *
+   * @var string[]
+   */
+  protected array $dirEntries = [];
+
+  /**
+   * Read position within the open directory's entry list.
+   *
+   * @var int
+   */
+  protected int $dirPosition = 0;
 
   /**
    * {@inheritdoc}
    */
   public function dir_opendir($path, $options) {
-    return FALSE;
+    $storage = $this->storage();
+    if ($storage === NULL) {
+      return FALSE;
+    }
+    $operator = $storage['operator'];
+    $target = StreamWrapperManager::getTarget($path) ?? '';
+    if ($target === '' || !$operator->directoryExists($target)) {
+      return FALSE;
+    }
+    $names = [];
+    foreach ($operator->listContents($target, FALSE) as $attribute) {
+      $relative = $target === '' ? $attribute->path() : substr($attribute->path(), strlen($target) + 1);
+      if ($relative !== '' && !str_contains($relative, '/')) {
+        $names[] = $relative;
+      }
+    }
+    $this->dirEntries = array_merge(['.', '..'], $names);
+    $this->dirPosition = 0;
+    return TRUE;
   }
 
   /**
    * {@inheritdoc}
    */
   public function dir_readdir() {
-    return FALSE;
+    return $this->dirEntries[$this->dirPosition++] ?? FALSE;
   }
 
   /**
    * {@inheritdoc}
    */
   public function dir_rewinddir() {
-    return FALSE;
+    $this->dirPosition = 0;
+    return TRUE;
   }
 
   /**
    * {@inheritdoc}
    */
   public function dir_closedir() {
-    return FALSE;
+    $this->dirEntries = [];
+    $this->dirPosition = 0;
+    return TRUE;
   }
 
 }

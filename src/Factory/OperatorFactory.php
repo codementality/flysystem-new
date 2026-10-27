@@ -120,4 +120,42 @@ class OperatorFactory {
     return $this->operators[$key];
   }
 
+  /**
+   * Returns the operator and the facts about it, for one scheme.
+   *
+   * File-operation consumers need more than the operator: the same
+   * questions PHP's metadata, path, and permission surface ask depend on
+   * what kind of storage answers (a local binding has a root to join; a
+   * store with no unix mode concept needs documented synthesis defaults).
+   * This method answers all of it in one lazy resolution: the operator,
+   * the merged definition's plugin id and config, and the locality the
+   * plugin's declared feature answers — computed here through the same
+   * predicate operatorFor() uses, never by inspecting plugin names.
+   *
+   * @param string $scheme
+   *   The scheme being operated on.
+   *
+   * @return array{operator: \League\Flysystem\FilesystemOperator, plugin: string, config: array, local: bool}|null
+   *   The bundle, or NULL when the scheme resolves to core-native
+   *   storage.
+   *
+   * @throws \Drupal\flysystem\Exception\FlysystemConfigExceptionInterface
+   *   Exactly what operatorFor() raises for the touched scheme; lazy,
+   *   scheme-local, never at container build.
+   */
+  public function definitionFor(string $scheme): ?array {
+    $definition = $this->resolver->resolve($scheme);
+    if ($definition === NULL) {
+      return NULL;
+    }
+    $plugin_id = $definition['plugin'];
+    $operator = $this->operatorFor($scheme);
+    return [
+      'operator' => $operator,
+      'plugin' => $plugin_id,
+      'config' => $definition['config'],
+      'local' => (bool) ($this->isLocalMode)($plugin_id),
+    ];
+  }
+
 }
