@@ -6,9 +6,9 @@ namespace Drupal\flysystem\Tests\Unit\Definition;
 
 use Drupal\Core\Site\Settings;
 use Drupal\flysystem\Definition\SettingsSource;
+use Drupal\flysystem\Exception\InvalidSettingsStructureException;
 use Drupal\flysystem\Validation\SettingsValidator;
 use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
@@ -41,7 +41,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   /**
    * Verifies a legacy layer presents through the modern adapter layer.
    */
-  public function testLegacyDriversBecomeAdapterDefinitions(): void {
+  public function testFlatDriversBecomeAdapterDefinitions(): void {
     new Settings([
       'flysystem' => [
         'local-example' => [
@@ -81,7 +81,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   /**
    * Verifies a legacy layer presents through the modern binding layer.
    */
-  public function testLegacySchemesBecomeBindings(): void {
+  public function testFlatSchemesBecomeBindings(): void {
     new Settings([
       'flysystem' => [
         'local-example' => ['driver' => 'local', 'config' => ['root' => 'files', 'public' => TRUE]],
@@ -136,57 +136,31 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   /**
    * Verifies modern layers are untouched by legacy detection.
    */
-  public function testModernShapeIsPassedThroughUntouched(): void {
+  public function testTwoSectionWriteFormIsRejectedWithGuidance(): void {
     $layer = [
       'adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 'files']]],
       'bindings' => ['public' => ['adapter' => 'main']],
     ];
     new Settings(['flysystem' => $layer]);
     $source = new SettingsSource();
-    self::assertSame($layer['adapters'], $source->getAdapterDefinitions());
-    self::assertSame($layer['bindings'], $source->getSchemeBindings());
+    try {
+      $source->getAdapterDefinitions();
+      self::fail('Expected a typed structure exception for the two-section write form.');
+    }
+    catch (InvalidSettingsStructureException $e) {
+      self::assertStringContainsString('adapters', $e->getMessage());
+      self::assertStringContainsString('driver', $e->getMessage(), 'The error must teach the supported format, not just reject the old one.');
+    }
   }
 
   /**
-   * Verifies mixed content: legacy detection keys on driver entries.
+   * Verifies an empty layer yields empty layers rather than an error.
    */
-  public function testLayerWithoutDriversIsNotLegacy(): void {
-    $layer = ['adapters' => [], 'bindings' => ['public' => ['adapter' => 'main']]];
-    new Settings(['flysystem' => $layer]);
+  public function testEmptyLayerYieldsEmptyLayers(): void {
+    new Settings(['flysystem' => []]);
     $source = new SettingsSource();
-    self::assertSame($layer['bindings'], $source->getSchemeBindings(), 'A modern-shaped layer with empty adapters is not reinterpreted.');
-  }
-
-  /**
-   * Verifies a legacy-only layer yields empty bindings under 'adapters'.
-   */
-  #[DataProvider('nonLegacyLayerProvider')]
-  public function testModernLayersSkipLegacyNormalization(array $layer): void {
-    new Settings(['flysystem' => $layer]);
-    $source = new SettingsSource();
-    self::assertSame($layer['adapters'] ?? [], $source->getAdapterDefinitions());
-    self::assertSame($layer['bindings'] ?? [], $source->getSchemeBindings());
-  }
-
-  /**
-   * Provides modern-shaped and empty layers.
-   *
-   * @return array<string, array{0: array}>
-   *   Modern-shaped and empty layers.
-   */
-  public static function nonLegacyLayerProvider(): array {
-    return [
-      'modern with adapters key' => [[
-        'adapters' => ['x' => ['plugin' => 'local']],
-        'bindings' => ['public' => ['adapter' => 'x']],
-      ],
-      ],
-      'modern with bindings key only' => [[
-        'bindings' => [],
-      ],
-      ],
-      'empty' => [[]],
-    ];
+    self::assertSame([], $source->getAdapterDefinitions());
+    self::assertSame([], $source->getSchemeBindings());
   }
 
   /**
