@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Plugin\FlysystemAdapter;
+namespace Drupal\flysystem_memory\Plugin\FlysystemAdapter;
 
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\flysystem\Attribute\FlysystemAdapter;
@@ -21,14 +21,15 @@ use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
  * "local" where it means "any adapter". It stores whole files in RAM,
  * ignores any configured root, and touches no filesystem at all.
  *
- * Policy, deliberately structural: this plugin is never user-selectable
- * and never a production backend. Administration interfaces must omit it;
- * verification tooling reports bindings that reference it as
- * non-production findings. Its availability method reports the truth —
- * the underlying package is a development-only dependency, so on an
- * installation without it the plugin reports unavailable and the factory
- * fails with the typed, plugin-naming package error rather than this
- * class erroring on a missing dependency.
+ * Policy, enforced by structure: this plugin lives in a hidden
+ * testing-package submodule that sites never enable and admin interfaces
+ * never list (the main module requires it only as a test dependency).
+ * Verification tooling reports any binding that references it as a
+ * non-production finding. The availability method reports the truth about
+ * the underlying library package, which is a development-only
+ * dependency: without it, the plugin says so and the factory fails with
+ * its typed, plugin-naming package error instead of this class touching
+ * a missing dependency.
  */
 #[FlysystemAdapter(id: 'memory', label: new TranslatableMarkup('In-memory (testing only)'))]
 final class Memory extends FlysystemAdapterBase implements FlysystemAdapterInterface {
