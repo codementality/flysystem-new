@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\Factory;
 
+use Psr\Log\LoggerInterface;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
@@ -115,7 +116,7 @@ final class OperatorFactoryTest extends TestCase {
     };
     $validator = new SettingsValidator($this->webRoot, $isLocal);
     $resolver = new BindingResolver([new ArrayDefinitionSource($settings_layer)], $validator);
-    return new OperatorFactory($resolver, $manager, $isLocal);
+    return new OperatorFactory($resolver, $manager, $isLocal, $this->createMock(LoggerInterface::class));
   }
 
   /**
