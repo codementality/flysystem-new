@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\Plugin;
 
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\flysystem\Exception\UnknownAdapterPluginException;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
@@ -19,6 +24,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Tests for the memory adapter plugin: a second backend, zero new branching.
@@ -39,8 +45,18 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class MemoryAdapterPluginTest extends TestCase {
 
+  /**
+   * Per-test temp directory.
+   *
+   * @var string
+   */
   private string $tempRoot = '';
 
+  /**
+   * The mock app root used by the local backend under test.
+   *
+   * @var string
+   */
   private string $webRoot = '';
 
   /**
@@ -51,12 +67,21 @@ final class MemoryAdapterPluginTest extends TestCase {
     $this->tempRoot = sys_get_temp_dir() . '/flysystem-m110-' . getmypid();
     $this->webRoot = $this->tempRoot . '/web';
     mkdir($this->webRoot, 0777, TRUE);
+    // The local adapter receives the app root through the container; a mock
+    // stands in for that single parameter, as in the factory tests.
+    $container = $this->createMock(ContainerInterface::class);
+    $container
+      ->method('getParameter')
+      ->with('app.root')
+      ->willReturn($this->webRoot);
+    \Drupal::setContainer($container);
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
+    \Drupal::setContainer($this->createMock(ContainerInterface::class));
     exec('rm -rf ' . escapeshellarg($this->tempRoot));
     parent::tearDown();
   }
@@ -83,8 +108,9 @@ final class MemoryAdapterPluginTest extends TestCase {
   }
 
   /**
-   * The round-trip parity proof: identical harness assertions pass against
-   * both shipped backends through the same factory pipeline.
+   * Proves round-trip parity through the same factory pipeline.
+   *
+   * Identical harness assertions must pass against both shipped backends.
    */
   #[DataProvider('shippedPlugins')]
   public function testBothBackendsRoundTripThroughTheSamePipeline(string $pluginId): void {
@@ -103,7 +129,7 @@ final class MemoryAdapterPluginTest extends TestCase {
   }
 
   /**
-   * The memoization proof, per backend.
+   * Proves memoization holds per backend.
    */
   #[DataProvider('shippedPlugins')]
   public function testBothBackendsMemoizeIdentically(string $pluginId): void {
@@ -129,8 +155,10 @@ final class MemoryAdapterPluginTest extends TestCase {
   }
 
   /**
-   * Verifies memory runs under the strict posture: no local declaration,
-   * so traversal strictness applies like any non-local backend.
+   * Verifies memory runs under the strict traversal posture.
+   *
+   * It declares no local storage, so strictness applies like any
+   * non-local backend.
    */
   public function testMemoryRunsUnderStrictPosture(): void {
     $factory = $this->factory('memory');
@@ -148,9 +176,10 @@ final class MemoryAdapterPluginTest extends TestCase {
   }
 
   /**
-   * Verifies the memory plugin's presence cannot affect other bindings:
-   * the discovery data may or may not contain it, resolution for a local
-   * binding is identical either way.
+   * Verifies the memory plugin's presence cannot affect other bindings.
+   *
+   * Discovery may or may not report it; resolution for a local binding
+   * is identical either way.
    */
   public function testMemoryPresenceNeverAffectsOtherSchemes(): void {
     $layer = [
@@ -168,8 +197,10 @@ final class MemoryAdapterPluginTest extends TestCase {
   }
 
   /**
+   * Provides the two shipped adapter plugin ids.
+   *
    * @return array<string, array{0: string}>
-   *   The two shipped adapter plugin ids.
+   *   Plugin ids.
    */
   public static function shippedPlugins(): array {
     return [
@@ -179,8 +210,10 @@ final class MemoryAdapterPluginTest extends TestCase {
   }
 
   /**
-   * Builds a factory bound to the public scheme on one plugin, local root
-   * 'store' (ignored by memory).
+   * Builds a factory bound to the public scheme on one plugin.
+
+   * The root 'store' is meaningful only to the local backend; memory
+   * ignores it by design.
    */
   private function factory(string $pluginId): OperatorFactory {
     return $this->managerFactory([
@@ -200,13 +233,16 @@ final class MemoryAdapterPluginTest extends TestCase {
    *   The two-section layer.
    * @param bool $includeMemory
    *   Whether discovery should report the memory plugin.
+   *
+   * @return \Drupal\flysystem\Factory\OperatorFactory
+   *   The wired factory.
    */
   private function managerFactory(array $layer, bool $includeMemory = TRUE): OperatorFactory {
     $manager = $this->manager($includeMemory);
     $isLocal = static function (string $pluginId) use ($manager): bool {
       $definition = $manager->getDefinition($pluginId, FALSE);
       if ($definition === NULL) {
-        throw new \Drupal\flysystem\Exception\UnknownAdapterPluginException($pluginId, 'presence-check');
+        throw new UnknownAdapterPluginException($pluginId, 'presence-check');
       }
       return is_subclass_of($definition['class'], LocalStorageInterface::class);
     };
@@ -230,10 +266,10 @@ final class MemoryAdapterPluginTest extends TestCase {
     }
     $manager = new FlysystemAdapterManager(
       new \ArrayObject(),
-      $this->createMock(\Drupal\Core\Cache\CacheBackendInterface::class),
-      $this->createMock(\Drupal\Core\Extension\ModuleHandlerInterface::class),
+      $this->createMock(CacheBackendInterface::class),
+      $this->createMock(ModuleHandlerInterface::class),
     );
-    $discovery = new class ($definitions) implements \Drupal\Component\Plugin\Discovery\DiscoveryInterface {
+    $discovery = new class ($definitions) implements DiscoveryInterface {
 
       public function __construct(private array $definitions) {
       }
@@ -260,7 +296,7 @@ final class MemoryAdapterPluginTest extends TestCase {
        *   The definition.
        */
       public function getDefinition($plugin_id, $return_empty = FALSE) {
-        return $this->definitions[$plugin_id] ?? ($return_empty ? NULL : throw new \Drupal\Component\Plugin\Exception\PluginNotFoundException($plugin_id));
+        return $this->definitions[$plugin_id] ?? ($return_empty ? NULL : throw new PluginNotFoundException($plugin_id));
       }
 
       /**
