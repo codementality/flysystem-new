@@ -69,10 +69,34 @@ final class FlysystemVerifyCommand extends DrushCommands {
   }
 
   /**
-   * Verify the storage configuration of every configured scheme.
+   * Check whether each configured file path's storage settings actually work.
+   *
+   * Answers one question per scheme configured in settings.php: can this
+   * module really use what the entry says? It checks that the entry is
+   * well-formed, that the named storage type exists and can load, that a
+   * publicly served path stays inside the web folder, and that the storage
+   * object for the path can be assembled. It uploads nothing, downloads
+   * nothing, and contacts no remote service - a dry run of the settings,
+   * not a live file test.
+   *
+   * Why it matters: a broken path is invisible by design until the first
+   * file operation hits it (that is what keeps the rest of the site alive
+   * when one scheme is misconfigured). This check surfaces those errors
+   * before real users trip over them - typically right after editing
+   * settings.php or as a deploy step.
+   *
+   * The command reports; it does not police. Every scheme gets one row:
+   * "sound" with no message, or one row per finding with the exact problem
+   * and its severity. By default the run succeeds even when findings
+   * exist, so capturing the output never fails a pipeline by accident;
+   * --strict exits with a failure status when any error-severity finding
+   * exists (warnings alone still pass). The same findings appear on the
+   * status report page and in the watchdog log; this command is their
+   * command-line face, not a second checker, so the three can never
+   * disagree.
    *
    * @param string|string[]|null $schemes
-   *   Schemes to verify; every configured scheme when empty. A single
+   *   Schemes to check; every configured scheme when empty. A single
    *   scheme arrives from the command line as a string, several as an
    *   array.
    * @param array<string, mixed> $options

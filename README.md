@@ -97,6 +97,36 @@ A path with no entry here behaves exactly as stock Drupal does. Flysystem
 and normal storage can sit side by side on the same site; you choose, per
 path, which one it uses.
 
+## Checking your configuration
+
+After editing `settings.php`, ask the module whether what you wrote can
+actually work — from the status report page (`admin/reports/status`, the
+Flysystem section), from the recent log entries, or from the command
+line:
+
+```
+drush flysystem:verify
+```
+
+One row per configured path: "sound", or the exact problem and how severe
+it is (for example a storage type that doesn't exist, or a publicly
+served folder that sits outside your web folder and therefore could never
+be reached by a web address). The check reads only your settings — it
+uploads nothing and contacts no remote service.
+
+Useful variants:
+
+- `drush flysystem:verify --format=json` — machine-readable output.
+- `drush flysystem:verify public private` — check named paths only.
+- `drush flysystem:verify --strict` — exit with a failure status when any
+  error is found, for use as a deploy step. By default the command reports
+  problems but still succeeds, so reading its output never fails a
+  pipeline by accident.
+
+Remember that a broken path stays quiet until the first file operation
+touches it (that keeps the rest of your site alive). The check is how you
+find out early instead of finding out through a broken upload.
+
 ## Writing a module that adds new storage?
 
 If you're a developer adding support for another storage service (or
