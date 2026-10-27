@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\Factory;
 
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
 use Drupal\flysystem\Exception\FlysystemPackageMissingException;
 use Drupal\flysystem\Exception\UnknownAdapterPluginException;
@@ -49,8 +53,18 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 #[CoversNothing]
 final class OperatorFactoryTest extends TestCase {
 
+  /**
+   * Per-test temp directory.
+   *
+   * @var string
+   */
   private string $tempRoot = '';
 
+  /**
+   * The mock app root the local plugin is anchored against.
+   *
+   * @var string
+   */
   private string $webRoot = '';
 
   /**
@@ -75,7 +89,8 @@ final class OperatorFactoryTest extends TestCase {
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    \Drupal::setContainer(NULL);
+    // Leave no test-specific container behind for sibling tests.
+    \Drupal::setContainer($this->createMock(ContainerInterface::class));
     exec('rm -rf ' . escapeshellarg($this->tempRoot));
     parent::tearDown();
   }
@@ -106,11 +121,13 @@ final class OperatorFactoryTest extends TestCase {
   /**
    * Builds the adapter layer for a local plugin rooted at $root.
    *
+   * @param string $plugin
+   *   The plugin id to bind.
    * @param string|array $root
    *   The configured root.
    *
    * @return array
-   *   A settings layer binding 'public' and 'second' style schemes to it.
+   *   An adapter definition layer entry.
    */
   private function localAdapters(string $plugin, string|array $root): array {
     return [
@@ -139,18 +156,35 @@ final class OperatorFactoryTest extends TestCase {
     ];
     $manager = new FlysystemAdapterManager(
       new \ArrayObject(),
-      $this->createMock(\Drupal\Core\Cache\CacheBackendInterface::class),
-      $this->createMock(\Drupal\Core\Extension\ModuleHandlerInterface::class),
+      $this->createMock(CacheBackendInterface::class),
+      $this->createMock(ModuleHandlerInterface::class),
     );
-    $discovery = new class ($definitions) implements \Drupal\Component\Plugin\Discovery\DiscoveryInterface {
+    $discovery = new class ($definitions) implements DiscoveryInterface {
 
       public function __construct(private array $definitions) {
       }
 
+      /**
+       * Returns the fixture definitions.
+       *
+       * @return array<string, array<string, string>>
+       *   Definitions keyed by plugin id.
+       */
       public function getDefinitions() {
         return $this->definitions;
       }
 
+      /**
+       * Returns one fixture definition by id.
+       *
+       * @param string $plugin_id
+       *   The plugin id.
+       * @param bool $return_empty
+       *   TRUE to return NULL for unknown ids instead of throwing.
+       *
+       * @return array<string, string>|null
+       *   The definition, or NULL when allowed.
+       */
       public function getDefinition($plugin_id, $return_empty = FALSE) {
         if (isset($this->definitions[$plugin_id])) {
           return $this->definitions[$plugin_id];
@@ -158,9 +192,18 @@ final class OperatorFactoryTest extends TestCase {
         if ($return_empty) {
           return NULL;
         }
-        throw new \Drupal\Component\Plugin\Exception\PluginNotFoundException($plugin_id);
+        throw new PluginNotFoundException($plugin_id);
       }
 
+      /**
+       * Whether the fixture holds a definition.
+       *
+       * @param string $plugin_id
+       *   The plugin id.
+       *
+       * @return bool
+       *   TRUE when defined.
+       */
       public function hasDefinition($plugin_id) {
         return isset($this->definitions[$plugin_id]);
       }
@@ -200,7 +243,10 @@ final class OperatorFactoryTest extends TestCase {
       }
     }
     self::assertSame(['notes/readme.txt'], $paths);
-    self::assertFileExists($this->webRoot . '/store/notes/readme.txt', 'The operator must land in the configured root under the app root, materialized on first write.');
+    self::assertFileExists(
+      $this->webRoot . '/store/notes/readme.txt',
+      "The operator must land in the configured root under the app root, materialized on first write.",
+    );
   }
 
   /**
@@ -247,7 +293,11 @@ final class OperatorFactoryTest extends TestCase {
     $again = $factory->operatorFor('public');
     $other = $factory->operatorFor('second');
     self::assertSame($first, $again, 'Per-request memoization must hand back the same object.');
-    self::assertSame($first, $other, 'Two schemes on one definition share one operator — the key is the definition, not the scheme.');
+    self::assertSame(
+      $first,
+      $other,
+      'Two schemes on one definition share one operator — the key is the definition, not the scheme.',
+    );
   }
 
   /**
@@ -281,7 +331,11 @@ final class OperatorFactoryTest extends TestCase {
     ]);
     $operator = $factory->operatorFor('public');
     $operator->write('deep/target.txt', 'v');
-    self::assertSame('v', $operator->read('deep/../deep/target.txt'), 'Local-mode operators keep the library default: interior .. collapses within the bound root.');
+    self::assertSame(
+      'v',
+      $operator->read('deep/../deep/target.txt'),
+      'Local-mode operators keep the library default: interior .. collapses within the bound root.',
+    );
   }
 
   /**
@@ -352,7 +406,7 @@ final class OperatorFactoryTest extends TestCase {
   }
 
   /**
-   * Builds a remote-posture operator directly, the same shape the factory merges.
+   * Builds a remote-posture operator the way the factory merges it.
    */
   private function remoteOperator(): FilesystemOperator {
     $plugin = new RemotePostureFixture([], 'remote_fixture', []);
