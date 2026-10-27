@@ -15,7 +15,6 @@ use League\Flysystem\FilesystemException;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
 use Drupal\flysystem\Util\LexicalPath;
-use League\Flysystem\FilesystemOperationFailed;
 use League\Flysystem\Visibility;
 
 // phpcs:disable Drupal.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
@@ -450,7 +449,11 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     }
     $target = $this->getTarget();
     $appRoot = (string) \Drupal::getContainer()->getParameter('app.root');
-    return LexicalPath::resolve(rtrim($root, '/') . '/' . $target, $appRoot);
+    $resolved = LexicalPath::resolve(rtrim($root, '/') . '/' . $target, $appRoot);
+    // The bound root is the traversal wall: a target that would collapse
+    // above it answers as a failed operation, never a real path outside
+    // the scheme's storage.
+    return LexicalPath::isInside($resolved, LexicalPath::resolve($root, $appRoot)) ? $resolved : FALSE;
   }
 
   /**
@@ -734,7 +737,7 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
       }
       return TRUE;
     }
-    catch (FilesystemOperationFailed) {
+    catch (FilesystemException) {
       return FALSE;
     }
   }
@@ -759,6 +762,9 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    * mode settings. A field the backend cannot answer falls to zero, never
    * null — PHP's stat contract does not tolerate nulls, and three of the
    * library's getters pass nullable adapter answers straight through.
+   * Failures of the guard itself (a path refused before the backend ever
+   * saw it) answer the same way: a rejected stat is "no such file", not a
+   * crash inside PHP's file functions.
    */
   public function url_stat($path, $flags) {
     $storage = $this->storage();
@@ -789,7 +795,7 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
         );
       }
     }
-    catch (FilesystemOperationFailed) {
+    catch (FilesystemException) {
       // Existence itself failed; treat as missing.
       return FALSE;
     }
@@ -811,7 +817,7 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     try {
       return $ask();
     }
-    catch (FilesystemOperationFailed) {
+    catch (FilesystemException) {
       return $default;
     }
   }
@@ -837,7 +843,7 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
       $storage['operator']->createDirectory($target);
       return TRUE;
     }
-    catch (FilesystemOperationFailed) {
+    catch (FilesystemException) {
       return FALSE;
     }
   }
@@ -857,17 +863,20 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     }
     $operator = $storage['operator'];
     $target = StreamWrapperManager::getTarget($path) ?? '';
-    if ($target === '' || !$operator->directoryExists($target)) {
+    if ($target === '') {
       return FALSE;
     }
     try {
+      if (!$operator->directoryExists($target)) {
+        return FALSE;
+      }
       foreach ($operator->listContents($target, FALSE) as $ignored) {
         return FALSE;
       }
       $operator->deleteDirectory($target);
       return TRUE;
     }
-    catch (FilesystemOperationFailed) {
+    catch (FilesystemException) {
       return FALSE;
     }
   }
@@ -882,14 +891,17 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     }
     $operator = $storage['operator'];
     $target = StreamWrapperManager::getTarget($path) ?? '';
-    if ($target === '' || !$operator->fileExists($target)) {
+    if ($target === '') {
       return FALSE;
     }
     try {
+      if (!$operator->fileExists($target)) {
+        return FALSE;
+      }
       $operator->delete($target);
       return TRUE;
     }
-    catch (FilesystemOperationFailed) {
+    catch (FilesystemException) {
       return FALSE;
     }
   }
@@ -909,14 +921,17 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     $operator = $storage['operator'];
     $from = StreamWrapperManager::getTarget($path_from) ?? '';
     $to = StreamWrapperManager::getTarget($path_to) ?? '';
-    if ($from === '' || $to === '' || !$operator->fileExists($from)) {
+    if ($from === '' || $to === '') {
       return FALSE;
     }
     try {
+      if (!$operator->fileExists($from)) {
+        return FALSE;
+      }
       $operator->move($from, $to);
       return TRUE;
     }
-    catch (FilesystemOperationFailed) {
+    catch (FilesystemException) {
       return FALSE;
     }
   }
@@ -949,15 +964,23 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     }
     $operator = $storage['operator'];
     $target = StreamWrapperManager::getTarget($path) ?? '';
-    if ($target === '' || !$operator->directoryExists($target)) {
+    if ($target === '') {
       return FALSE;
     }
     $names = [];
-    foreach ($operator->listContents($target, FALSE) as $attribute) {
-      $relative = $target === '' ? $attribute->path() : substr($attribute->path(), strlen($target) + 1);
-      if ($relative !== '' && !str_contains($relative, '/')) {
-        $names[] = $relative;
+    try {
+      if (!$operator->directoryExists($target)) {
+        return FALSE;
       }
+      foreach ($operator->listContents($target, FALSE) as $attribute) {
+        $relative = $target === '' ? $attribute->path() : substr($attribute->path(), strlen($target) + 1);
+        if ($relative !== '' && !str_contains($relative, '/')) {
+          $names[] = $relative;
+        }
+      }
+    }
+    catch (FilesystemException) {
+      return FALSE;
     }
     $this->dirEntries = array_merge(['.', '..'], $names);
     $this->dirPosition = 0;
