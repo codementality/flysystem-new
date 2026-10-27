@@ -83,6 +83,47 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
   protected bool $operatorResolved = FALSE;
 
   /**
+   * The in-memory buffer behind the currently open handle.
+   *
+   * A handle reads whole-file content in once through the operator and
+   * serves every later read/seek/tell/truncate from this buffer; a changed
+   * buffer is handed back through the operator exactly once, on flush or
+   * close. This is the buffer model that turns stateful PHP stream calls
+   * into the stateless whole-file operator operations.
+   *
+   * @var resource|null
+   */
+  protected $buffer = NULL;
+
+  /**
+   * The operator path (target within the bound root) of the open handle.
+   *
+   * @var string|null
+   */
+  protected ?string $handlePath = NULL;
+
+  /**
+   * Whether the open handle allows writing.
+   *
+   * @var bool
+   */
+  protected bool $writable = FALSE;
+
+  /**
+   * Whether the buffer holds changes not yet handed back to the operator.
+   *
+   * @var bool
+   */
+  protected bool $dirty = FALSE;
+
+  /**
+   * Whether closing this handle must persist it, even with no bytes written.
+   *
+   * @var bool
+   */
+  protected bool $mustPersist = FALSE;
+
+  /**
    * {@inheritdoc}
    */
   public function setUri($uri) {
@@ -200,88 +241,183 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     // Touching the scheme resolves its binding: a broken configuration
     // raises its typed error right here, which is what keeps the failure
     // lazy (build time stays silent) and scheme-local. The operator is
-    // memoized on this instance for the operations that follow; PHP's
-    // protocol asks this method only for success or failure, and opening
-    // bytes is the handle-semantics ticket's work.
-    $this->resolveOperator();
-    return FALSE;
+    // remembered on this instance for every call the handle makes after.
+    $operator = $this->resolveOperator();
+    if ($operator === NULL) {
+      // The scheme answers core-native while this wrapper is registered
+      // for it — a state the registration rules rule out. Refuse the open
+      // rather than half-serve it.
+      return FALSE;
+    }
+
+    $target = StreamWrapperManager::getTarget($path) ?? '';
+    if ($target === '') {
+      return FALSE;
+    }
+    $first = $mode[0] ?? 'r';
+    $plus = str_contains($mode, '+');
+    $exists = $operator->fileExists($target);
+
+    if ($first === 'x' && $exists) {
+      return FALSE;
+    }
+    if ($first === 'r' && !$exists) {
+      return FALSE;
+    }
+
+    // The buffer model: whole-file content comes in once, through the
+    // operator, at open. Write modes start from empty (truncation); a
+    // 'w'/'x'/new-'a' handle must hand the file back on close even if
+    // nothing is ever written, so an empty result still persists.
+    $contents = ($first === 'w' || !$exists) ? '' : (string) stream_get_contents($operator->readStream($target));
+
+    $this->buffer = fopen('php://memory', 'r+b');
+    if ($this->buffer === FALSE) {
+      return FALSE;
+    }
+    if ($contents !== '') {
+      fwrite($this->buffer, $contents);
+    }
+    if ($first !== 'a') {
+      rewind($this->buffer);
+    }
+    $this->handlePath = $target;
+    $this->writable = $first !== 'r' || $plus;
+    $this->dirty = FALSE;
+    $this->mustPersist = $first === 'w' || $first === 'x' || !$exists;
+    return TRUE;
   }
 
   /**
    * {@inheritdoc}
-   *
-   * Placeholder (no bytes read yet) — the handle-semantics row deepens
-   * this method to the resolved operator.
    */
   public function stream_read($count) {
-    return '';
+    if ($this->buffer === NULL || $count <= 0) {
+      return '';
+    }
+    return (string) fread($this->buffer, (int) $count);
   }
 
   /**
    * {@inheritdoc}
-   *
-   * Placeholder (no bytes written) — the handle-semantics row deepens
-   * this method to the resolved operator.
    */
   public function stream_write($data) {
-    return 0;
+    if ($this->buffer === NULL || !$this->writable) {
+      return 0;
+    }
+    $written = fwrite($this->buffer, (string) $data);
+    if ($written > 0) {
+      $this->dirty = TRUE;
+    }
+    return (int) $written;
   }
 
   /**
    * {@inheritdoc}
-   *
-   * Placeholder (position zero) — deepened with the handle-semantics row.
    */
   public function stream_tell() {
-    return 0;
+    return $this->buffer === NULL ? 0 : (int) ftell($this->buffer);
   }
 
   /**
    * {@inheritdoc}
-   *
-   * Placeholder (immediate end of stream) — deepened with the
-   * handle-semantics row.
    */
   public function stream_eof() {
-    return TRUE;
+    return $this->buffer === NULL ? TRUE : feof($this->buffer);
   }
 
   /**
    * {@inheritdoc}
    */
   public function stream_seek($offset, $whence = SEEK_SET) {
-    return FALSE;
+    if ($this->buffer === NULL) {
+      return FALSE;
+    }
+    // A position before the start of the file must fail, not wrap — the
+    // behavior a real file handle has.
+    $moved = fseek($this->buffer, (int) $offset, $whence);
+    return $moved === 0 && ftell($this->buffer) >= 0;
   }
 
   /**
    * {@inheritdoc}
    */
   public function stream_flush() {
-    return TRUE;
+    return $this->persist();
   }
 
   /**
    * {@inheritdoc}
    */
   public function stream_truncate($new_size) {
-    return FALSE;
+    if ($this->buffer === NULL || !$this->writable) {
+      return FALSE;
+    }
+    ftruncate($this->buffer, max(0, (int) $new_size));
+    $this->dirty = TRUE;
+    return TRUE;
   }
 
   /**
    * {@inheritdoc}
    */
   public function stream_close() {
+    $this->persist();
+    if (is_resource($this->buffer)) {
+      fclose($this->buffer);
+    }
+    $this->buffer = NULL;
+    $this->handlePath = NULL;
+    $this->writable = FALSE;
+    $this->dirty = FALSE;
+    $this->mustPersist = FALSE;
+  }
+
+  /**
+   * Hands a changed handle back to the operator, exactly once per change.
+   *
+   * Flush and close both go through here; after a successful hand-back the
+   * buffer is clean until the next change, so a handle that flushes twice
+   * uploads once. The handle position is preserved across the hand-back,
+   * which is what callers of fflush() expect on a real stream.
+   */
+  private function persist(): bool {
+    if ($this->buffer === NULL || $this->handlePath === NULL) {
+      return TRUE;
+    }
+    if (!$this->dirty && !$this->mustPersist) {
+      return TRUE;
+    }
+    $operator = $this->resolveOperator();
+    if ($operator === NULL) {
+      return FALSE;
+    }
+    $position = ftell($this->buffer);
+    rewind($this->buffer);
+    $operator->writeStream($this->handlePath, $this->buffer);
+    fseek($this->buffer, (int) $position);
+    $this->dirty = FALSE;
+    $this->mustPersist = FALSE;
+    return TRUE;
   }
 
   /**
    * {@inheritdoc}
    */
   public function stream_cast($cast_as) {
-    return FALSE;
+    // The handle is a memory buffer; exposing it lets stream_select and
+    // stream_copy_to_stream work on the read side, as on a real handle.
+    return is_resource($this->buffer) ? $this->buffer : FALSE;
   }
 
   /**
    * {@inheritdoc}
+   *
+   * Documented deviation from a core local wrapper: advisory locks are
+   * refused, not emulated. The buffer model holds no on-disk handle for
+   * the life of the stream (content is pulled in and handed back
+   * whole-file), and reaching past the operator for a real path would
+   * bypass the traversal guard the binding depends on.
    */
   public function stream_lock($operation) {
     return FALSE;
@@ -296,6 +432,10 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Path-level attribute changes (touch, chmod, and friends) answer with
+   * the metadata row's url_stat work; a handle refuses rather than
+   * half-applies.
    */
   public function stream_metadata($path, $option, $value) {
     return FALSE;
@@ -305,7 +445,9 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    * {@inheritdoc}
    */
   public function stream_stat() {
-    return [];
+    // State of the open handle itself; storage metadata answers live with
+    // the url_stat work on the metadata row.
+    return is_resource($this->buffer) ? (fstat($this->buffer) ?: []) : [];
   }
 
   /**
