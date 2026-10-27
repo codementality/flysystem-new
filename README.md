@@ -7,8 +7,10 @@ through `settings.php`.
 
 ## Configuration
 
-Configure a scheme by adding one entry to `$settings['flysystem']`, keyed
-by the scheme name, with the adapter's `driver` and its `config`:
+The settings format is exactly one entry per scheme, keyed by the scheme
+name, carrying the adapter's `driver` and its `config` — the same layout
+older versions of this module used, so existing files keep working as-is:
+
 
 ```php
 $settings['flysystem'] = [
@@ -59,43 +61,6 @@ errors when the scheme is used, not at container build.
   applies without any per-scheme configuration.
 - `link_handling` (optional): `disallow` (default) refuses symlinks when
   traversing listings; `skip` omits symlinked entries.
-
-### Advanced: several schemes on one definition
-
-"Sharing one adapter definition" solves a repetition problem. In the
-flat form, every scheme carries its own complete `driver` + `config`
-block — correct when each scheme has its own backend, but if two or
-three schemes are meant to use the *same* backend configuration, that
-block is copy-pasted once per scheme and each copy has to be edited
-separately forever after.
-
-The two-layer form writes the configuration once and lists the schemes
-that use it: an `adapters` section keyed by adapter id (the definition),
-and a `bindings` section keyed by scheme (which scheme uses which
-definition):
-
-```php
-$settings['flysystem'] = [
-  // One definition, written once.
-  'adapters' => [
-    'uploads' => ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']],
-  ],
-  'bindings' => [
-    // Two schemes deliberately on the same storage: one definition,
-    // one place to edit.
-    'public' => ['adapter' => 'uploads'],
-    'legacy' => ['adapter' => 'uploads'],
-    // A binding may also override individual config keys for just its
-    // own scheme; here, same plugin and options, different root.
-    'exports' => ['adapter' => 'uploads', 'config' => ['root' => 'sites/default/exports']],
-  ],
-];
-```
-
-If every scheme has its own backend configuration, this form adds
-nothing — use the flat shape. Both forms are accepted, separately or
-combined (a `bindings` entry for a scheme wins over a flat entry of the
-same name); every consumer sees one normalized result either way.
 
 ## Schemes and core-native coexistence
 
