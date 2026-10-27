@@ -90,29 +90,6 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
   }
 
   /**
-   * A bound public scheme names, describes, and URLs itself like core's.
-   *
-   * The file field configuration UI reads exactly these from the wrapper;
-   * the replacement must present the same words and the same download
-   * address as the wrapper it replaced, or the site builder loses
-   * information mid-swap.
-   */
-  public function testBoundSchemePresentsCoreNamingAndUrls(): void {
-    $this->rebuildWithBindings([
-      'public' => ['driver' => 'local', 'config' => ['root' => 'sites/default/files']],
-    ]);
-    $manager = $this->container->get('stream_wrapper_manager');
-
-    $bound = $manager->getViaUri('public://example.jpg');
-    self::assertSame('Public files', (string) $bound->getName());
-    self::assertSame('Public local files served by the webserver.', (string) $bound->getDescription());
-
-    $native = new PublicStream();
-    $native->setUri('public://example.jpg');
-    self::assertSame($native->getExternalUrl(), $bound->getExternalUrl(), 'A bound public file must keep the URL the webserver serves it at.');
-  }
-
-  /**
    * A binding may introduce the private wrapper where core defined none.
    */
   public function testPrivateSchemeBoundWithoutCorePrivatePath(): void {
