@@ -5,3 +5,32 @@ services:
   plugin.manager.flysystem_adapter:
     class: Drupal\flysystem\Plugin\FlysystemAdapterManager
     arguments: ['@container.namespaces', '@cache.discovery', '@module_handler']
+
+  # Answers plugin-locality questions from discovery data alone.
+  flysystem.feature_inspector:
+    class: Drupal\flysystem\Verification\PluginFeatureInspector
+    arguments: ['@plugin.manager.flysystem_adapter']
+
+  # The settings.php definition source.
+  flysystem.settings_source:
+    class: Drupal\flysystem\Definition\SettingsSource
+
+  # Validates the configuration of the scheme currently being touched.
+  flysystem.binding_validator:
+    class: Drupal\flysystem\Validation\SettingsValidator
+    arguments: ['%app.root%', '@flysystem.feature_inspector']
+
+  # Resolves scheme bindings to merged definitions.
+  flysystem.binding_resolver:
+    class: Drupal\flysystem\Resolution\BindingResolver
+    arguments: [ [ '@flysystem.settings_source' ], '@flysystem.binding_validator' ]
+
+  # Builds and memoizes operators per scheme.
+  flysystem.operator_factory:
+    class: Drupal\flysystem\Factory\OperatorFactory
+    arguments: ['@flysystem.binding_resolver', '@plugin.manager.flysystem_adapter', '@flysystem.feature_inspector']
+
+  # The verification surface consumed by tests now and tooling later.
+  flysystem.binding_verifier:
+    class: Drupal\flysystem\Verification\BindingVerifier
+    arguments: ['@flysystem.binding_resolver', '@flysystem.operator_factory', [ '@flysystem.settings_source' ]]
