@@ -28,7 +28,7 @@ use PHPUnit\Framework\TestCase;
  * escape); a publicly accessible local root outside the webroot is
  * refused by the settings validator, not by this plugin — the plugin
  * serves any root the resolver admits, including the
- * '/../private-files' convention used for private storage.
+ * '../private-files' convention used for private storage.
  */
 #[Group('flysystem')]
 #[CoversNothing]

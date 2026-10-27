@@ -25,7 +25,7 @@ $settings['flysystem'] = [
   'private' => [
     'driver' => 'local',
     'config' => [
-      'root' => '/../private-files',
+      'root' => '../private-files',
     ],
   ],
 ];
@@ -33,8 +33,10 @@ $settings['flysystem'] = [
 
 That example keeps `public://` where Drupal normally puts it and moves
 `private://` to a `private-files` folder sitting next to your web folder
-instead of inside it. A path that doesn't start with `/` is measured
-from your web folder; `/..` means "one folder up".
+instead of inside it — the same way the old (2.x) module spelled it, so
+existing configurations need no edits. A path that doesn't start with
+`/` is measured from your web folder, and `../` steps up out of it. A
+path that starts with `/` is an exact location on the server.
 
 ## The options you can set
 
