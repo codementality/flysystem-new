@@ -10,14 +10,17 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Tests the module scaffold contract: packaging and the wrapper guard.
+ * Tests the module scaffold contract: packaging and the wrapper guards.
  *
  * Asserts the scaffold packaging as data: machine name / namespace
  * `flysystem` / `Drupal\flysystem`, the module's own composer.json runtime
  * requires (league/flysystem ^3 + flysystem-local; memory stays a host
- * dev-only package), and the scope guard — the module contributes ZERO
- * services tagged `stream_wrapper` and no call path reaches
- * stream_wrapper_register().
+ * dev-only package), and the wrapper discipline: the module's own YAML
+ * files contribute zero services tagged `stream_wrapper` (wrapper
+ * registration happens conditionally at container build time from
+ * settings, never statically), and no production code path ever calls
+ * PHP's own registration primitive directly — registration flows only
+ * through core's wrapper manager.
  */
 #[Group('flysystem')]
 #[CoversNothing]
@@ -78,7 +81,12 @@ final class FlysystemScaffoldContractTest extends TestCase {
   }
 
   /**
-   * Verifies zero services are tagged `stream_wrapper`.
+   * Verifies zero services are tagged `stream_wrapper` in YAML.
+   *
+   * Wrapper definitions for bound schemes are re-pointed conditionally at
+   * container build time by the module's service provider; nothing in the
+   * module's own YAML files carries the tag, so an unbound site provably
+   * contributes no wrappers at all.
    */
   public function testZeroStreamWrapperTaggedServices(): void {
     $found = [];
@@ -96,10 +104,15 @@ final class FlysystemScaffoldContractTest extends TestCase {
   }
 
   /**
-   * Verifies no production code path can reach stream_wrapper_register().
+   * Verifies no production code path can reach PHP's registration primitive.
+   *
+   * Wrapper registration must flow through core's stream wrapper manager —
+   * the only mechanism that keeps the class map, the service locator, and
+   * PHP's own registration in step. Direct calls would leave the manager's
+   * caches describing a wrapper PHP never dispatched to.
    */
   public function testNoCallPathReachesStreamWrapperRegister(): void {
-    $pattern = '/stream_wrapper_register\s*\(|\bStreamWrapper::register\s*\(|implements\s+[^{]*StreamWrapperInterface/';
+    $pattern = '/stream_wrapper_register\s*\(|\bStreamWrapper::register\s*\(/';
     $hits = [];
     foreach ($this->productionPhpFiles() as $file) {
       if (preg_match($pattern, (string) file_get_contents($file), $match)) {
