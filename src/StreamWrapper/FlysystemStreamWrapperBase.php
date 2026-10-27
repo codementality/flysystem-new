@@ -38,8 +38,9 @@ use League\Flysystem\FilesystemOperator;
  *   implemented once in this class against the operator, deepened by the
  *   tickets that own each behavior. The placeholder return values below
  *   ("no bytes moved yet") belong to that staged build-out, not to any
- *   individual scheme, and no wrapper ships enabled for binding until
- *   those tickets land.
+ *   individual scheme: within the milestone the rows merge in sequence,
+ *   and the binding's first end-to-end file operations are certified by
+ *   the handle-semantics and metadata rows that deepen this class.
  */
 abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
@@ -206,6 +207,9 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Placeholder (no bytes read yet) — the handle-semantics row deepens
+   * this method to the resolved operator.
    */
   public function stream_read($count) {
     return '';
@@ -213,6 +217,9 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Placeholder (no bytes written) — the handle-semantics row deepens
+   * this method to the resolved operator.
    */
   public function stream_write($data) {
     return 0;
@@ -220,6 +227,8 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Placeholder (position zero) — deepened with the handle-semantics row.
    */
   public function stream_tell() {
     return 0;
@@ -227,6 +236,9 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Placeholder (immediate end of stream) — deepened with the
+   * handle-semantics row.
    */
   public function stream_eof() {
     return TRUE;
