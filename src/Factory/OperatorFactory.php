@@ -27,8 +27,12 @@ use Psr\Log\LoggerInterface;
  * strict (interior '..' rejected outright). The posture rides to the
  * plugin inside the merged configuration under the library's own reserved
  * key, which adapter plugins forward to their operator.
+ *
+ * Not final: consumers that hold this factory are exercised with a
+ * stand-in answering operatorFor(), so the seam between storage and file
+ * operations can be tested without building a real backend.
  */
-final class OperatorFactory {
+class OperatorFactory {
 
   use DefinitionChecksumTrait;
 
