@@ -34,7 +34,7 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
   }
 
   /**
-   * Reads the flysystem layer, normalizing the legacy shape if present.
+   * Reads the flysystem layer, normalizing the flat form if present.
    *
    * @return array<string, array>
    *   Sections 'adapters' and 'bindings'; empty when the layer or a
@@ -45,8 +45,8 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
     if (!is_array($layer)) {
       return [];
     }
-    if (self::isLegacyLayer($layer)) {
-      return self::normalizeLegacy($layer);
+    if (self::isFlatLayer($layer)) {
+      return self::normalizeFlat($layer);
     }
     return [
       'adapters' => is_array($layer['adapters'] ?? NULL) ? $layer['adapters'] : [],
@@ -55,21 +55,24 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
   }
 
   /**
-   * Detects the flysystem 2.x settings shape.
+   * Detects the flat, scheme-keyed settings shape.
    *
-   * The 2.x module (see its published README, CONFIGURATION section) keys
-   * wrappers by scheme name directly under $settings['flysystem'], each
-   * entry carrying a string 'driver' plus optional 'config'. A layer that
-   * already carries the modern 'adapters'/'bindings' keys is never
+   * The recommended user-facing form — one entry per scheme, each with a
+   * 'driver' plus optional 'config', and the binding options 'disabled'
+   * and 'publicly_accessible' as siblings. It is deliberately the shape
+   * the published flysystem 2.x module used (see its README,
+   * CONFIGURATION section), so upgrading sites need no edits. A layer
+   * that already carries the 'adapters'/'bindings' keys (the two-layer
+   * form, for sharing adapter definitions across schemes) is never
    * reinterpreted.
    *
    * @param array $layer
    *   The raw flysystem layer.
    *
    * @return bool
-   *   TRUE when the layer looks like the 2.x shape.
+   *   TRUE when the layer is in flat form.
    */
-  private static function isLegacyLayer(array $layer): bool {
+  private static function isFlatLayer(array $layer): bool {
     if (isset($layer['adapters']) || isset($layer['bindings'])) {
       return FALSE;
     }
@@ -82,24 +85,26 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
   }
 
   /**
-   * Presents the 2.x shape through the modern two-layer interface.
+   * Presents the flat form through the same two internal layers.
    *
    * Scheme entries become adapter definitions ('driver' becomes 'plugin',
-   * 'config' passes through untouched — including 2.x keys the modern
-   * layers never interpret, which stay inert) and scheme bindings to a
-   * deterministic sanitized adapter id. Collisions after sanitization
-   * gain numeric suffixes in sorted scheme order, so a site's
-   * configuration never silently loses a scheme. A boolean 'public'
-   * config flag becomes the binding's 'publicly_accessible' answer; any
-   * other value is left inside the adapter config as inert data.
+   * 'config' passes through untouched — keys the module does not
+   * interpret stay inert) and scheme bindings to a deterministic
+   * sanitized adapter id. Collisions after sanitization gain numeric
+   * suffixes in sorted scheme order, so a configuration never silently
+   * loses a scheme. Binding options on the scheme entry ('disabled',
+   * 'publicly_accessible') are copied when boolean; a boolean
+   * config['public'] also answers the publicly-accessible question unless
+   * the binding-level sibling states it explicitly. Any other value is
+   * left inside the adapter config as inert data.
    *
    * @param array $layer
-   *   The legacy layer.
+   *   The flat-form layer.
    *
    * @return array<string, array>
    *   Normalized 'adapters' and 'bindings' sections.
    */
-  private static function normalizeLegacy(array $layer): array {
+  private static function normalizeFlat(array $layer): array {
     $adapters = [];
     $bindings = [];
     $schemes = array_keys($layer);
@@ -128,7 +133,13 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
         'config' => $config,
       ];
       $binding = ['adapter' => $id];
-      if (isset($config['public']) && is_bool($config['public'])) {
+      if (isset($entry['disabled']) && is_bool($entry['disabled'])) {
+        $binding['disabled'] = $entry['disabled'];
+      }
+      if (isset($entry['publicly_accessible']) && is_bool($entry['publicly_accessible'])) {
+        $binding['publicly_accessible'] = $entry['publicly_accessible'];
+      }
+      elseif (isset($config['public']) && is_bool($config['public'])) {
         $binding['publicly_accessible'] = $config['public'];
       }
       $bindings[(string) $scheme] = $binding;
