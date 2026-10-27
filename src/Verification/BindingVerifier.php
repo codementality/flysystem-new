@@ -8,18 +8,18 @@ use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\Resolution\BindingResolver;
 
 /**
- * The programmatic verification surface for configured scheme bindings.
+ * The verification surface for configured schemes.
  *
  * The verifyBinding() method answers one question: is this scheme's
- * configuration actually sound? It answers with structured findings —
- * severity plus message — instead of
- * throwing, so administration screens and command tooling can present the
- * whole picture of a misconfigured site without guarding every call. It
- * checks the full chain for one scheme: that the configuration resolves
- * and validates, that the referenced plugin exists and reports itself
- * available, and the policy rule that the testing-only memory backend is
- * never a production binding. A scheme bound by more than one source gets
- * an informational note that its lower binding is shadowed.
+ * storage configuration actually sound? It answers with structured
+ * findings — severity plus message — instead of throwing, so
+ * administration screens and command tooling can present the whole
+ * picture of a misconfigured site without guarding every call. For one
+ * scheme it checks the full chain: that the configuration resolves and
+ * validates, that the referenced plugin exists, reports itself
+ * available, and builds a working operator. A scheme with no
+ * configuration is never a finding: stock Drupal storage is sound by
+ * definition.
  *
  * Verification reaches no deeper than operator construction (no live
  * remote round trips beyond what building the operator itself does) and
@@ -35,14 +35,10 @@ final class BindingVerifier {
    * @param \Drupal\flysystem\Factory\OperatorFactory $factory
    *   The operator factory whose build path checks plugin availability
    *   and construction.
-   * @param \Drupal\flysystem\Definition\AdapterDefinitionSourceInterface[] $sources
-   *   The same ordered sources the resolver reads, used only to detect
-   *   shadowed bindings.
    */
   public function __construct(
     protected readonly BindingResolver $resolver,
     protected readonly OperatorFactory $factory,
-    protected readonly array $sources = [],
   ) {
   }
 
@@ -59,19 +55,6 @@ final class BindingVerifier {
   public function verifyBinding(string $scheme): array {
     $findings = [];
 
-    $shadowed = 0;
-    foreach ($this->sources as $source) {
-      if (array_key_exists($scheme, $source->getSchemeBindings())) {
-        $shadowed++;
-      }
-    }
-    if ($shadowed > 1) {
-      $findings[] = [
-        'severity' => 'info',
-        'message' => sprintf("Scheme '%s' is bound by more than one configuration source; the highest-precedence binding applies and the others are shadowed.", $scheme),
-      ];
-    }
-
     try {
       $definition = $this->resolver->resolve($scheme);
     }
@@ -81,13 +64,6 @@ final class BindingVerifier {
     }
     if ($definition === NULL) {
       return $findings;
-    }
-
-    if ($definition['plugin'] === 'memory') {
-      $findings[] = [
-        'severity' => 'warning',
-        'message' => sprintf("Scheme '%s' uses the 'memory' adapter, which is a testing-only backend and must not be configured for production storage.", $scheme),
-      ];
     }
 
     try {

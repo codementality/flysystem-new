@@ -101,7 +101,7 @@ final class BindingVerifierTest extends TestCase {
     $sourceObjects = array_map(static fn (array $layer): ArrayDefinitionSource => new ArrayDefinitionSource($layer), $sources);
     $resolver = new BindingResolver($sourceObjects, $validator);
     $factory = new OperatorFactory($resolver, $manager, $inspector);
-    return new BindingVerifier($resolver, $factory, $sourceObjects);
+    return new BindingVerifier($resolver, $factory);
   }
 
   /**
@@ -244,43 +244,6 @@ final class BindingVerifierTest extends TestCase {
     self::assertNotEmpty($findings);
     self::assertSame('error', $findings[0]['severity']);
     self::assertStringContainsString('/srv/outside-webroot', $findings[0]['message']);
-  }
-
-  /**
-   * Verifies the testing-only memory flag is a warning, not an error.
-   *
-   * The binding otherwise verifies clean.
-   */
-  public function testMemoryBindingFlaggedAsNonProduction(): void {
-    $verifier = $this->verifier([
-      [
-        'adapters' => ['m' => ['plugin' => 'memory', 'config' => []]],
-        'bindings' => ['sandbox' => ['adapter' => 'm']],
-      ],
-    ]);
-    $findings = $verifier->verifyBinding('sandbox');
-    self::assertCount(1, $findings, 'Only the policy flag: the binding itself verifies sound.');
-    self::assertSame('warning', $findings[0]['severity']);
-    self::assertStringContainsString('testing', strtolower($findings[0]['message']));
-  }
-
-  /**
-   * A scheme bound in two sources reports the shadowing as information.
-   */
-  public function testShadowedBindingIsNoted(): void {
-    $verifier = $this->verifier([
-      [
-        'adapters' => ['settings_adapter' => ['plugin' => 'remote_like', 'config' => []]],
-        'bindings' => ['files' => ['adapter' => 'settings_adapter']],
-      ],
-      [
-        'adapters' => ['entity_adapter' => ['plugin' => 'memory', 'config' => []]],
-        'bindings' => ['files' => ['adapter' => 'entity_adapter']],
-      ],
-    ]);
-    $findings = $verifier->verifyBinding('files');
-    $severities = array_column($findings, 'severity');
-    self::assertContains('info', $severities, 'The higher binding shadows the lower one; verification must say so plainly.');
   }
 
   /**
