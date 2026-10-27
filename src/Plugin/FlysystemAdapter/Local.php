@@ -178,6 +178,11 @@ class Local extends FlysystemAdapterBase implements LocalStorageInterface, Conta
     if (isset($config['directory_visibility'])) {
       $defaults['directory_visibility'] = (string) $config['directory_visibility'];
     }
+    if (array_key_exists('allow_relative_path_traversal', $config)) {
+      // The factory's posture decision rides in the merged configuration
+      // under the library's own key; forwarded untouched to the operator.
+      $defaults['allow_relative_path_traversal'] = (bool) $config['allow_relative_path_traversal'];
+    }
     return $defaults;
   }
 
