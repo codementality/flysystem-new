@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\flysystem\Definition;
 
 use Drupal\Core\Site\Settings;
+use Drupal\flysystem\Exception\InvalidSettingsStructureException;
 
 /**
  * Reads the flysystem layer from settings.php ($settings['flysystem']).
@@ -34,54 +35,26 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
   }
 
   /**
-   * Reads the flysystem layer, normalizing the flat form if present.
+   * Reads the flysystem layer and presents it as two internal layers.
    *
    * @return array<string, array>
-   *   Sections 'adapters' and 'bindings'; empty when the layer or a
-   *   section is absent or not an array.
+   *   Sections 'adapters' and 'bindings'; empty when the layer is empty.
+   *
+   * @throws \Drupal\flysystem\Exception\InvalidSettingsStructureException
+   *   When the layer uses the two-section 'adapters'/'bindings' write
+   *   form. That form was considered and dropped: the settings format is
+   *   exactly one entry per scheme, and a rejected write is better than a
+   *   silently misread one.
    */
   private function layers(): array {
     $layer = Settings::get('flysystem', []);
     if (!is_array($layer)) {
       return [];
     }
-    if (self::isFlatLayer($layer)) {
-      return self::normalizeFlat($layer);
-    }
-    return [
-      'adapters' => is_array($layer['adapters'] ?? NULL) ? $layer['adapters'] : [],
-      'bindings' => is_array($layer['bindings'] ?? NULL) ? $layer['bindings'] : [],
-    ];
-  }
-
-  /**
-   * Detects the flat, scheme-keyed settings shape.
-   *
-   * The recommended user-facing form — one entry per scheme, each with a
-   * 'driver' plus optional 'config', and the binding options 'disabled'
-   * and 'publicly_accessible' as siblings. It is deliberately the shape
-   * the published flysystem 2.x module used (see its README,
-   * CONFIGURATION section), so upgrading sites need no edits. A layer
-   * that already carries the 'adapters'/'bindings' keys (the two-layer
-   * form, for sharing adapter definitions across schemes) is never
-   * reinterpreted.
-   *
-   * @param array $layer
-   *   The raw flysystem layer.
-   *
-   * @return bool
-   *   TRUE when the layer is in flat form.
-   */
-  private static function isFlatLayer(array $layer): bool {
     if (isset($layer['adapters']) || isset($layer['bindings'])) {
-      return FALSE;
+      throw new InvalidSettingsStructureException('flysystem', "one entry per scheme, each carrying a string 'driver' (the two-section 'adapters'/'bindings' write form is not supported; the internal two-layer model is an implementation detail, not a configuration format)");
     }
-    foreach ($layer as $entry) {
-      if (is_array($entry) && isset($entry['driver']) && is_string($entry['driver'])) {
-        return TRUE;
-      }
-    }
-    return FALSE;
+    return self::normalizeFlat($layer);
   }
 
   /**
