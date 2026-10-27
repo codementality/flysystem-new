@@ -7,7 +7,9 @@ namespace Drupal\flysystem\StreamWrapper;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use League\Flysystem\FilesystemException;
 use League\Flysystem\FilesystemOperator;
+use Psr\Log\LoggerInterface;
 
 // phpcs:disable Drupal.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
 // The stream operation method names below (stream_open, dir_readdir,
@@ -200,6 +202,54 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
   }
 
   /**
+   * The module's logger channel, for recording refused operations.
+   *
+   * @return \Psr\Log\LoggerInterface
+   *   The channel service.
+   */
+  protected function logger(): LoggerInterface {
+    /** @var \Psr\Log\LoggerInterface $logger */
+    $logger = \Drupal::service('logger.channel.flysystem');
+    return $logger;
+  }
+
+  /**
+   * Runs one operator question, refusing softly when the storage layer says no.
+   *
+   * The guard and the backend answer with the library's own exceptions:
+   * a rejected path, a refused write, a missing metadata answer. A path
+   * is user input, not configuration — refusing it is normal operation,
+   * and PHP's own file functions signal that outcome with a failed call,
+   * not a crash. Typed binding errors (raised earlier, during
+   * resolution) keep their contract and are never caught here.
+   *
+   * @param callable $ask
+   *   The operator question, returning the answer on success.
+   * @param callable $on_refusal
+   *   Receives the exception; returns the value a refusal should answer.
+   * @param string $level
+   *   Severity for the record: 'warning' when nothing was lost, 'error'
+   *   when data was at stake.
+   *
+   * @return mixed
+   *   The answer, or the refusal value.
+   */
+  protected function guarded(callable $ask, callable $on_refusal, string $level = 'warning'): mixed {
+    try {
+      return $ask();
+    }
+    catch (FilesystemException $e) {
+      $context = [
+        'scheme' => static::getSchemeName(),
+        'link' => NULL,
+        'exception' => $e,
+      ];
+      $this->logger()->{$level}($e->getMessage(), $context);
+      return $on_refusal($e);
+    }
+  }
+
+  /**
    * The scheme this wrapper class serves, for operator resolution.
    *
    * @return string
@@ -256,7 +306,23 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     }
     $first = $mode[0] ?? 'r';
     $plus = str_contains($mode, '+');
-    $exists = $operator->fileExists($target);
+
+    // Every question below is a storage-layer call that the guard or the
+    // backend may refuse — a hostile or unservable path answers as a
+    // failed open, recorded once, never a crash inside PHP's stream
+    // layer. The typed binding contract is untouched: resolution already
+    // happened above and still propagates.
+    $failed = FALSE;
+    $exists = $this->guarded(
+      fn(): bool => $operator->fileExists($target),
+      function () use (&$failed): bool {
+        $failed = TRUE;
+        return FALSE;
+      },
+    );
+    if ($failed) {
+      return FALSE;
+    }
 
     if ($first === 'x' && $exists) {
       return FALSE;
@@ -268,8 +334,23 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     // The buffer model: whole-file content comes in once, through the
     // operator, at open. Write modes start from empty (truncation); a
     // 'w'/'x'/new-'a' handle must hand the file back on close even if
-    // nothing is ever written, so an empty result still persists.
-    $contents = ($first === 'w' || !$exists) ? '' : (string) stream_get_contents($operator->readStream($target));
+    // nothing is ever written, so an empty result still persists. When
+    // existing content is required but cannot be pulled, the open fails
+    // — proceeding would overwrite bytes it could not read.
+    $contents = '';
+    if ($exists && $first !== 'w') {
+      $stream = $this->guarded(
+        fn() => $operator->readStream($target),
+        function () {
+          return FALSE;
+        },
+        'error',
+      );
+      if ($stream === FALSE) {
+        return FALSE;
+      }
+      $contents = (string) stream_get_contents($stream);
+    }
 
     $this->buffer = fopen('php://memory', 'r+b');
     if ($this->buffer === FALSE) {
@@ -362,6 +443,11 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    * {@inheritdoc}
    */
   public function stream_close() {
+    // PHP gives close no return channel, so the answer is not dropped:
+    // persist() records a failed hand-back as a logged error before it
+    // returns. Closing after a refusal that was already surfaced by
+    // fflush() re-records only if bytes are still pending, which is the
+    // point — nothing that was not written vanishes silently.
     $this->persist();
     if (is_resource($this->buffer)) {
       fclose($this->buffer);
@@ -394,7 +480,21 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     }
     $position = ftell($this->buffer);
     rewind($this->buffer);
-    $operator->writeStream($this->handlePath, $this->buffer);
+    // A refused hand-back must be answerable, not fatal: flush reports
+    // the failure to its caller, and close — which PHP gives no failure
+    // channel — records what was lost instead of swallowing it.
+    $done = $this->guarded(
+      function () use ($operator): bool {
+        $operator->writeStream($this->handlePath, $this->buffer);
+        return TRUE;
+      },
+      fn(): bool => FALSE,
+      'error',
+    );
+    if (!$done) {
+      fseek($this->buffer, (int) $position);
+      return FALSE;
+    }
     fseek($this->buffer, (int) $position);
     $this->dirty = FALSE;
     $this->mustPersist = FALSE;
