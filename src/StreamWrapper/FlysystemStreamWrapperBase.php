@@ -6,6 +6,7 @@ namespace Drupal\flysystem\StreamWrapper;
 
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
+use Drupal\Core\StringTranslation\StringTranslationTrait;
 use League\Flysystem\FilesystemOperator;
 
 // phpcs:disable Drupal.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
@@ -27,15 +28,31 @@ use League\Flysystem\FilesystemOperator;
  * Storage operations are delegated to the filesystem operator built for
  * this wrapper's scheme, never to an adapter directly: routing through
  * the operator is what engages its path-traversal guard.
+ *
+ * Method ownership in this class family is deliberate:
+ * - Scheme-identity behavior (type constants, names, descriptions,
+ *   external URLs) differs per scheme, never per adapter, and is declared
+ *   abstract here so each concrete wrapper must carry it.
+ * - Byte-level storage behavior (open/read/write/seek, metadata,
+ *   directory operations) is identical for every storage scheme and is
+ *   implemented once in this class against the operator, deepened by the
+ *   tickets that own each behavior. The placeholder return values below
+ *   ("no bytes moved yet") belong to that staged build-out, not to any
+ *   individual scheme, and no wrapper ships enabled for binding until
+ *   those tickets land.
  */
 abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
+
+  use StringTranslationTrait;
 
   /**
    * Stream context resource.
    *
-   * PHP sets this on every stream wrapper object it creates; core's own
-   * wrappers declare it for the same reason (LocalStream). Omitting it
-   * triggers a dynamic-property deprecation the moment a stream opens.
+   * PHP's stream engine assigns this property from outside the object the
+   * moment a stream opens — a protected declaration fatal-errors under
+   * fopen() ("Cannot access protected property"). Core's own wrappers
+   * declare it public for exactly this reason; it is the engine's slot,
+   * not application state, and nothing in this class reads it.
    *
    * @var resource|null
    */
@@ -115,7 +132,9 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    *
    * Resolution happens at operation time, never earlier: the storage
    * factory validates the binding lazily and raises typed errors for the
-   * touched scheme only.
+   * touched scheme only. The memoized operator serves every later call
+   * on this instance; PHP's protocol itself receives only success or
+   * failure from the stream methods.
    *
    * @return \League\Flysystem\FilesystemOperator|null
    *   The operator, or NULL when this scheme resolves to core-native
@@ -147,32 +166,27 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
   /**
    * {@inheritdoc}
    */
-  public function getName() {
-    // Translated scheme labels are part of the naming and URL work for
-    // this seam; a storage wrapper answers with its scheme name until then.
-    return static::getSchemeName();
-  }
+  abstract public function getName();
 
   /**
    * {@inheritdoc}
    */
-  public function getDescription() {
-    return '';
-  }
+  abstract public function getDescription();
 
   /**
    * {@inheritdoc}
    */
-  public function getExternalUrl() {
-    // Storage wrappers do not claim URL behavior yet; see the naming and
-    // URL work for this seam.
-    return '';
-  }
+  abstract public function getExternalUrl();
 
   /**
    * {@inheritdoc}
    */
   public function realpath() {
+    // Placeholder for the metadata ticket: canonical local paths are a
+    // storage-location question handled once in this class against the
+    // resolved operator (real for local storage, FALSE for stores with no
+    // local path — the same answer every non-local core wrapper already
+    // gives). Never a per-scheme difference.
     return FALSE;
   }
 
@@ -180,8 +194,12 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    * {@inheritdoc}
    */
   public function stream_open($path, $mode, $options, &$opened_path) {
-    // Touching the scheme resolves its binding; an invalid binding raises
-    // its typed error here rather than at container build.
+    // Touching the scheme resolves its binding: a broken configuration
+    // raises its typed error right here, which is what keeps the failure
+    // lazy (build time stays silent) and scheme-local. The operator is
+    // memoized on this instance for the operations that follow; PHP's
+    // protocol asks this method only for success or failure, and opening
+    // bytes is the handle-semantics ticket's work.
     $this->resolveOperator();
     return FALSE;
   }
