@@ -13,23 +13,22 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests the 2.x settings array compatibility in the settings source.
+ * Tests the flat (scheme-keyed) settings shape of the settings source.
  *
- * The published Drupal Flysystem 2.x module (and its README) defines
- * wrappers as scheme-keyed entries directly under $settings['flysystem'],
- * each carrying a 'driver' plus a 'config' array — with local config keys
- * like 'root', 'public', and a v1-style 'permissions' map, and extra keys
- * such as 'name', 'description', and 'replicate'. Upgrading a site should
- * not require rewriting that array: the settings source detects the old
- * shape and presents it through the modern two-layer interface, mapping
- * scheme to adapter through a deterministic sanitized id and the 2.x
- * 'public' flag to the binding's publicly-accessible answer.
- *
- * Reference: flysystem 2.3.1 README, CONFIGURATION section.
+ * The recommended user-facing configuration is one entry per scheme,
+ * each carrying a 'driver' plus a 'config' array — optionally with the
+ * binding options 'disabled' and 'publicly_accessible' as siblings.
+ * This is deliberately the shape the published flysystem 2.x module
+ * used (its README, CONFIGURATION section), so upgrading sites need no
+ * edits and basic configuration stays small; the two-layer
+ * adapters/bindings shape remains supported for sharing adapter
+ * definitions across schemes. The flat form is presented through the
+ * same two internal layers every definition source uses, mapping scheme
+ * to adapter through a deterministic sanitized id.
  */
 #[Group('flysystem')]
 #[CoversNothing]
-final class LegacySettingsSourceCompatibilityTest extends TestCase {
+final class SettingsSourceInlineShapeTest extends TestCase {
 
   /**
    * {@inheritdoc}
@@ -188,6 +187,43 @@ final class LegacySettingsSourceCompatibilityTest extends TestCase {
       ],
       'empty' => [[]],
     ];
+  }
+
+  /**
+   * Verifies the flat form can pin a scheme core-native with 'disabled'.
+   */
+  public function testFlatEntrySupportsDisabledSibling(): void {
+    new Settings([
+      'flysystem' => [
+        'temporary' => [
+          'driver' => 'local',
+          'disabled' => TRUE,
+          'config' => ['root' => 'tmp'],
+        ],
+      ],
+    ]);
+    $bindings = (new SettingsSource())->getSchemeBindings();
+    self::assertSame([
+      'adapter' => 'temporary',
+      'disabled' => TRUE,
+    ], $bindings['temporary'], 'A disabled sibling must survive into the binding so resolution can pin the scheme core-native.');
+  }
+
+  /**
+   * Verifies an explicit sibling publicly-accessible flag wins over config.
+   */
+  public function testFlatEntrySupportsPubliclyAccessibleSibling(): void {
+    new Settings([
+      'flysystem' => [
+        'cdn' => [
+          'driver' => 'local',
+          'publicly_accessible' => FALSE,
+          'config' => ['root' => 'files', 'public' => TRUE],
+        ],
+      ],
+    ]);
+    $bindings = (new SettingsSource())->getSchemeBindings();
+    self::assertFalse($bindings['cdn']['publicly_accessible'], 'An explicit binding-level answer overrides the config-level public flag.');
   }
 
   /**
