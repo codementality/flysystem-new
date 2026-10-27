@@ -52,7 +52,7 @@ final class DefinitionSourceContractTest extends TestCase {
     return [
       'adapters' => [
         'public' => ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']],
-        'private' => ['plugin' => 'local', 'config' => ['root' => '/../private-files']],
+        'private' => ['plugin' => 'local', 'config' => ['root' => '../private-files']],
       ],
       'bindings' => [
         'public' => ['adapter' => 'public'],
@@ -75,7 +75,7 @@ final class DefinitionSourceContractTest extends TestCase {
       ],
       'private' => [
         'driver' => 'local',
-        'config' => ['root' => '/../private-files'],
+        'config' => ['root' => '../private-files'],
         'publicly_accessible' => FALSE,
       ],
     ];
