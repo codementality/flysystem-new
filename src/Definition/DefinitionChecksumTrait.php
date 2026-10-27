@@ -7,12 +7,16 @@ namespace Drupal\flysystem\Definition;
 /**
  * Computes the stable identity key of a merged adapter definition.
  *
- * Composed by the classes that memoize or reason about operator identity
- * (the factory; later, the verification API) rather than exposed as a
- * global utility: the checksum is internal machinery. Adapter authors
- * implement the plugin interface and never compute keys, so nothing here
- * is public or static — the entry point is protected and reaches the
- * outside world only through a composing class.
+ * Composed by exactly two kinds of class, both inside this module: the
+ * operator factory (which memoizes filesystems under this key) and the
+ * verification API (which reports on configured bindings). It is NOT
+ * used by adapter plugins and is not part of what adapter authors
+ * implement — those authors implement FlysystemAdapterInterface
+ * (buildFilesystem / isAvailable) and never compute identity keys.
+ *
+ * That is why the entry point is protected and nothing is static: the
+ * checksum is internal machinery that reaches the outside world only
+ * through a composing class.
  *
  * The key must be stable in exactly the ways assembly is not:
  *
