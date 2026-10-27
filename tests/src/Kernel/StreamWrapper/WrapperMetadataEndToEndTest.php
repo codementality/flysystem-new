@@ -110,7 +110,7 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
     self::assertIsArray($stat);
     self::assertSame(10, $stat['size']);
     self::assertIsInt($stat['mtime']);
-    self::assertGreaterThan(0, $stat['mode'] & S_IFREG);
+    self::assertGreaterThan(0, $stat['mode'] & 0100000);
     // No null anywhere in the array PHP reads.
     array_walk_recursive($stat, function ($value): void {
       self::assertNotNull($value);
@@ -144,12 +144,12 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
     self::assertTrue(is_dir('private://gallery/thumbs'));
     self::assertDirectoryExists($this->root . '/gallery/thumbs', 'The folders exist in the bound folder on disk.');
     $stat = stat('private://gallery');
-    self::assertGreaterThan(0, $stat[2] & S_IFDIR);
+    self::assertGreaterThan(0, $stat[2] & 0040000);
     self::assertGreaterThan(0, $stat['mode'] & 0777, 'directory mode answers from the binding');
   }
 
   /**
-   * scandir lists the folder with dot entries then the children.
+   * Scandir lists the folder with dot entries then the children.
    */
   public function testScandirListsChildren(): void {
     $operator = $this->bindPrivate();
@@ -171,7 +171,7 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   }
 
   /**
-   * rmdir refuses a non-empty folder and allows an empty one.
+   * Rmdir refuses a non-empty folder and allows an empty one.
    */
   public function testRmdirSemantics(): void {
     $operator = $this->bindPrivate();
@@ -189,7 +189,7 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   }
 
   /**
-   * rename relocates the object; the old path stops answering.
+   * Rename relocates the object; the old path stops answering.
    */
   public function testRenameMovesTheObject(): void {
     $operator = $this->bindPrivate();
@@ -202,7 +202,7 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   }
 
   /**
-   * unlink removes the object from the bound folder.
+   * Unlink removes the object from the bound folder.
    */
   public function testUnlinkRemoves(): void {
     $operator = $this->bindPrivate();
@@ -215,7 +215,7 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   }
 
   /**
-   * touch moves mtime forward and preserves content.
+   * Touch moves mtime forward and preserves content.
    */
   public function testTouchMovesMtimeAndKeepsBytes(): void {
     $operator = $this->bindPrivate();
@@ -233,7 +233,7 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   }
 
   /**
-   * touch creates a missing file empty.
+   * Touch creates a missing file empty.
    */
   public function testTouchCreatesMissingFile(): void {
     $this->bindPrivate();
@@ -244,13 +244,18 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   }
 
   /**
-   * realpath resolves local storage lexically and nothing else.
+   * Realpath resolves local storage through the wrapper's own contract.
+   *
+   * PHP's builtin realpath is not a stream hook; core's file_system
+   * service delegates to the wrapper's realpath() for stream URIs, and
+   * that is the consumer path a bound scheme answers.
    */
   public function testRealpathForLocalRoot(): void {
     $operator = $this->bindPrivate();
     $operator->write('deep/nest/here.txt', 'x');
 
-    self::assertSame($this->root . '/deep/nest/here.txt', realpath('private://deep/nest/here.txt'), 'The canonical path is the binding root joined to the target — no symlink chasing, no surprises.');
+    $resolved = \Drupal::service('file_system')->realpath('private://deep/nest/here.txt');
+    self::assertSame($this->root . '/deep/nest/here.txt', $resolved, 'The canonical path is the binding root joined to the target — anchored lexically, no symlink chasing.');
   }
 
   /**
