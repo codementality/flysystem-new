@@ -42,10 +42,14 @@ final class BindingVerifier {
    * @param \Drupal\flysystem\Factory\OperatorFactory $factory
    *   The operator factory whose build path checks plugin availability
    *   and construction.
+   * @param \Drupal\flysystem\Definition\AdapterDefinitionSourceInterface[] $sources
+   *   The configuration sources, used to enumerate which schemes exist
+   *   so file-configured sites are verifiable with no UI involved.
    */
   public function __construct(
     protected readonly BindingResolver $resolver,
     protected readonly OperatorFactory $factory,
+    protected readonly array $sources = [],
   ) {
   }
 
@@ -81,6 +85,42 @@ final class BindingVerifier {
     }
 
     return $findings;
+  }
+
+  /**
+   * Lists every scheme configured by any source.
+   *
+   * This is how configuration that lives only in settings.php becomes
+   * known to the verification surface: there is no form to enumerate,
+   * so the sources themselves answer what exists.
+   *
+   * @return string[]
+   *   Configured scheme names, without duplicates.
+   */
+  public function configuredSchemes(): array {
+    $schemes = [];
+    foreach ($this->sources as $source) {
+      foreach (array_keys($source->getSchemeBindings()) as $scheme) {
+        $schemes[(string) $scheme] = TRUE;
+      }
+    }
+    $list = array_keys($schemes);
+    sort($list);
+    return $list;
+  }
+
+  /**
+   * Verifies every configured scheme in one call, keyed by scheme name.
+   *
+   * A status or diagnostic consumer calls this single method to cover
+   * the site's whole configuration surface; schemes with no findings
+   * appear with empty lists, which is the answer "sound".
+   *
+   * @return array<string, array<int, array{severity: string, message: string}>>
+   *   Findings per configured scheme.
+   */
+  public function verifyEverything(): array {
+    return $this->verifyAll($this->configuredSchemes());
   }
 
   /**

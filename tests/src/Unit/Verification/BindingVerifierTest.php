@@ -101,7 +101,7 @@ final class BindingVerifierTest extends TestCase {
     $sourceObjects = array_map(static fn (array $layer): ArrayDefinitionSource => new ArrayDefinitionSource($layer), $sources);
     $resolver = new BindingResolver($sourceObjects, $validator);
     $factory = new OperatorFactory($resolver, $manager, $inspector);
-    return new BindingVerifier($resolver, $factory);
+    return new BindingVerifier($resolver, $factory, $sourceObjects);
   }
 
   /**
@@ -292,6 +292,50 @@ final class BindingVerifierTest extends TestCase {
     ]);
     $findings = $bound->verifyBinding('has space');
     self::assertSame('error', $findings[0]['severity'], 'A bound scheme with an illegal name surfaces as a finding, never as an exception.');
+  }
+
+  /**
+   * Verifies configured schemes are enumerable from the configuration.
+   *
+   * A site configured entirely in settings.php has no form to enumerate;
+   * the sources themselves answer what exists.
+   */
+  public function testConfiguredSchemesAreListedAcrossSources(): void {
+    $verifier = $this->verifier([
+      [
+        'adapters' => ['a' => ['plugin' => 'remote_like', 'config' => []]],
+        'bindings' => ['files' => ['adapter' => 'a'], 'cdn' => ['adapter' => 'a']],
+      ],
+      [
+        'adapters' => ['b' => ['plugin' => 'remote_like', 'config' => []]],
+        'bindings' => ['other' => ['adapter' => 'b']],
+      ],
+    ]);
+    $schemes = $verifier->configuredSchemes();
+    sort($schemes);
+    self::assertSame(['cdn', 'files', 'other'], $schemes, 'Every scheme bound by any source is known to the verifier, file-configured or otherwise.');
+  }
+
+  /**
+   * Verifying everything configured is one call, keyed by scheme.
+   */
+  public function testVerifyEverythingCoversAllConfiguredSchemes(): void {
+    $verifier = $this->verifier([
+      [
+        'adapters' => [
+          'good' => ['plugin' => 'local', 'config' => ['root' => 'files']],
+          'ghost' => ['plugin' => 'no_such_plugin'],
+        ],
+        'bindings' => [
+          'public' => ['adapter' => 'good'],
+          'broken' => ['adapter' => 'ghost'],
+        ],
+      ],
+    ]);
+    $report = $verifier->verifyEverything();
+    self::assertSame(['broken', 'public'], array_keys($report), 'Report is keyed by configured scheme, deterministically ordered.');
+    self::assertSame([], $report['public']);
+    self::assertSame('error', $report['broken'][0]['severity']);
   }
 
 }

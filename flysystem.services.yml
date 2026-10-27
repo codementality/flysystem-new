@@ -33,4 +33,4 @@ services:
   # The verification surface consumed by tests now and tooling later.
   flysystem.binding_verifier:
     class: Drupal\flysystem\Verification\BindingVerifier
-    arguments: ['@flysystem.binding_resolver', '@flysystem.operator_factory']
+    arguments: ['@flysystem.binding_resolver', '@flysystem.operator_factory', [ '@flysystem.settings_source' ]]
