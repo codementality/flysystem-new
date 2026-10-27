@@ -1,16 +1,18 @@
 # Flysystem
 
-Flysystem-backed file storage for Drupal, built on the League/Flysystem v3
-library. Storage backends are adapter plugins that bind to file schemes
-(`public://`, `private://`, `temporary://`, or any new scheme you define)
-through `settings.php`.
+Store your site's files somewhere other than the web server's own disk —
+or in a different folder on that disk — without changing anything else
+about how Drupal or your modules work. Files keep using ordinary paths
+like `public://photo.jpg` and `private://report.pdf`; this module decides
+where they actually go.
 
-## Configuration
+## Getting started
 
-The settings format is exactly one entry per scheme, keyed by the scheme
-name, carrying the adapter's `driver` and its `config` — the same layout
-older versions of this module used, so existing files keep working as-is:
-
+The module ships with storage on the local disk. Open your site's
+`settings.php` file (in `web/sites/default/`) and add a
+`$settings['flysystem']` section with one entry per path you want to
+control. Each entry is keyed by the path's name and says which storage
+to use and where the files live:
 
 ```php
 $settings['flysystem'] = [
@@ -23,77 +25,79 @@ $settings['flysystem'] = [
   'private' => [
     'driver' => 'local',
     'config' => [
-      // Relative roots anchor against the Drupal install root, never the
-      // working directory of the running process.
-      'root' => '../private-files',
+      'root' => '/../private-files',
     ],
   ],
 ];
 ```
 
-Optional siblings of `driver`, per scheme entry:
+That example keeps `public://` where Drupal normally puts it and moves
+`private://` to a `private-files` folder sitting next to your web folder
+instead of inside it. A path that doesn't start with `/` is measured
+from your web folder; `/..` means "one folder up".
 
-- `publicly_accessible` (bool): whether the scheme serves files over web
-  URLs. Defaults to `TRUE` only for `public`. When `TRUE` on a locally
-  bound scheme, the root must resolve inside the webroot — publicly
-  reachable storage outside the document root cannot be served by URL and
-  is rejected with an actionable error naming the resolved path. Remote
-  adapters are exempt: they have no webroot concept. (The older
-  `config['public']` flag answers the same question and continues to
-  work; the explicit sibling wins if both are present.)
-- `disabled` (bool): `TRUE` pins the scheme to core's native stream
-  wrapper, whatever else binds it.
+## The options you can set
 
-Scheme names must match `^[A-Za-z0-9-]+$`. PHP cannot register stream
-wrappers with underscores, and characters such as dots and pluses are
-not understood by Drupal's scheme parser; violations surface as precise
-errors when the scheme is used, not at container build.
+For each path:
 
-### Local adapter options
+- **`driver`** — which storage to use. Out of the box: `local` (a
+  folder on the server). Other storage types (Amazon S3 and similar)
+  arrive as separate modules you can enable.
+- **`config`** — the storage's own settings. For `local`, that means
+  `root`: the folder the files live in.
+- **`publicly_accessible`** — whether files in this path can be opened
+  directly through a web address. Only `public` assumes `TRUE`; every
+  other path assumes `FALSE`. A publicly reachable folder must live
+  inside your web folder — if it doesn't, the module says so plainly
+  when the path is used, because files outside the web folder cannot be
+  served by URL. (Storage that lives on another service, like S3, is
+  served by its own web address and is exempt from this rule.)
+- **`disabled`** — set to `TRUE` to hand this path back to Drupal's
+  normal storage, even if something else configured it.
 
-- `root` (required): absolute path, or relative to the Drupal install
-  root. The directory is created on the first write, never at
-  configuration time.
-- `unix_visibility` (optional): file and directory permissions map,
-  `['file' => ['public' => 0664, 'private' => 0600], 'dir' => ...]`.
-  Defaults come from the site's own `file_chmod_file` and
-  `file_chmod_directory` settings, so Drupal's standard permission model
-  applies without any per-scheme configuration.
-- `link_handling` (optional): `disallow` (default) refuses symlinks when
-  traversing listings; `skip` omits symlinked entries.
+Rules for the path name itself: use letters, numbers, and hyphens
+(`my-files` is fine; `My_files`, spaces, dots, and colons are not).
 
-## Schemes and core-native coexistence
+## File permissions
 
-A scheme with no entry — or one pinned with `disabled => TRUE` — keeps
-core's own stream wrapper untouched. Flysystem-backed and core-backed
-schemes coexist on the same site; replacing a core scheme requires
-binding it explicitly.
+You never configure these. Files and folders are created with your
+site's standard Drupal permissions — the same ones set by the
+`file_chmod_file` and `file_chmod_directory` settings you may already
+have — so private folders land as private (owner read/write only)
+without any extra work.
 
-## Configuration options that do not carry forward
+## Upgrading from the old (2.x) version of this module
 
-The 2.x module ran on League/Flysystem v1. Its **user configuration
-shape carries forward unchanged** — existing `$settings['flysystem']`
-arrays are read as-is. A few 2.x config keys, however, describe features
-that did not survive the library conversion. They are accepted and
-ignored (never an error), but they do nothing:
+Your existing `$settings['flysystem']` entries keep working as written.
+A few older settings keys belong to features that no longer exist and
+now do nothing — the module accepts them quietly so nothing breaks, but
+plan to remove them:
 
-- **`replicate` — deprecated.** v1's replication adapter (write each
-  file to a second endpoint as a backup) has no League/Flysystem v3
-  equivalent and is not reimplemented. Sites relying on it should move
-  backup semantics to their storage provider (bucket replication,
-  lifecycle rules, or equivalent) or to external sync tooling. A future
-  return depends on demonstrated demand and upstream library support;
-  nothing in the current format promises it.
-- **`cache` — deprecated.** Filesystem-metadata caching was a v1 library
-  decorator concept with no v3 counterpart here; operators are managed
-  per request instead.
-- **`name` and `description` — moved.** Adapter labels now come from the
-  plugin's own definition, not from settings.
-- **Driver-specific v1 keys** (for example FTP's `passive`, `ssl`,
-  `timeout`, `permPrivate`, `permPublic`, `transferMode`): each backend
-  plugin now defines its own accepted configuration; keys a plugin does
-  not recognize are inert. Consult each adapter plugin's documentation.
+- **`replicate`** — older versions could write every file to a second
+  destination as a backup. That feature has no replacement here; use
+  your storage provider's own replication (S3 bucket rules and the like)
+  or a server-level sync tool instead.
+- **`cache`** — old versions could cache file metadata; this one
+  doesn't need to.
+- **`name` and `description`** — labels shown in the interface now come
+  from the storage module itself, not from settings.
+- **Old FTP-style keys** such as `passive`, `ssl`, `timeout`,
+  `permPrivate`, `permPublic`, `transferMode` — each storage module now
+  documents its own settings; keys a module doesn't know are ignored.
 
-Beyond the configuration array itself, nothing is imported from 2.x
-internals: this module is a fresh implementation on v3, and the 2.x code
-is not used as a base.
+Everything else from 2.x — the settings layout, how paths are written —
+is unchanged on purpose. The old code itself is not used: this is a
+fresh implementation built on the current storage library.
+
+## Paths you don't configure
+
+A path with no entry here behaves exactly as stock Drupal does. Flysystem
+and normal storage can sit side by side on the same site; you choose, per
+path, which one it uses.
+
+## Writing a module that adds new storage?
+
+If you're a developer adding support for another storage service (or
+contributing one to this project), read
+[DEVELOPER_NOTES.md](DEVELOPER_NOTES.md) — it covers the plugin
+interface, discovery, and the settings that reach your code.

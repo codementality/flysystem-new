@@ -115,7 +115,7 @@ final class CommentsAreSelfContainedTest extends TestCase {
         }
       }
     }
-    foreach (['flysystem.services.yml', 'flysystem.info.yml', 'composer.json', 'README.md'] as $name) {
+    foreach (['flysystem.services.yml', 'flysystem.info.yml', 'composer.json', 'README.md', 'DEVELOPER_NOTES.md'] as $name) {
       if (is_file($this->moduleRoot . '/' . $name)) {
         $files[] = $this->moduleRoot . '/' . $name;
       }
