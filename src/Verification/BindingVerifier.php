@@ -24,6 +24,13 @@ use Drupal\flysystem\Resolution\BindingResolver;
  * Verification reaches no deeper than operator construction (no live
  * remote round trips beyond what building the operator itself does) and
  * propagates no exception of any kind, whatever it reads.
+ *
+ * This surface only returns findings — it logs nothing, displays
+ * nothing, and has no side effects. Deciding what a finding means to an
+ * operator (printed on a status report, shown beside a form, written to
+ * the watchdog log) belongs to the consuming tooling, so each consumer
+ * can choose its own severity threshold and destination instead of the
+ * checker presuming them.
  */
 final class BindingVerifier {
 
