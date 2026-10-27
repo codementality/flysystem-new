@@ -9,7 +9,10 @@ use Drupal\flysystem\Exception\UnknownAdapterPluginException;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
 use League\Flysystem\Config;
+use League\Flysystem\PathTraversalDetected;
+use League\Flysystem\UnableToWriteFile;
 use League\Flysystem\FilesystemOperator;
+use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -61,12 +64,20 @@ final class WrapperHandleSemanticsTest extends TestCase {
   private $factory;
 
   /**
+   * Logger channel double; failed hand-backs must leave a record.
+   *
+   * @var \Psr\Log\LoggerInterface|\PHPUnit\Framework\MockObject\MockObject
+   */
+  private $logger;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
     parent::setUp();
     $this->store = [];
     $this->writes = [];
+    $this->logger = $this->createMock(LoggerInterface::class);
 
     $this->operator = $this->createMock(FilesystemOperator::class);
     $this->operator->method('fileExists')
@@ -93,9 +104,15 @@ final class WrapperHandleSemanticsTest extends TestCase {
       ->willReturn($this->operator);
 
     $container = $this->createMock(ContainerInterface::class);
-    $container->method('get')
-      ->with('flysystem.operator_factory')
-      ->willReturn($this->factory);
+    $container->method('get')->willReturnCallback(function (string $id) {
+      if ($id === 'flysystem.operator_factory') {
+        return $this->factory;
+      }
+      if ($id === 'logger.channel.flysystem') {
+        return $this->logger;
+      }
+      return NULL;
+    });
     \Drupal::setContainer($container);
   }
 
@@ -264,6 +281,83 @@ final class WrapperHandleSemanticsTest extends TestCase {
     $wrapper = new FlysystemPublicStream();
     $opened_path = NULL;
     $wrapper->stream_open('public://whatever.txt', 'r', 0, $opened_path);
+  }
+
+  /**
+   * A failed hand-back answers FALSE on flush and leaves a record.
+   *
+   * Calling fflush() can report failure; the writeStream call may be refused
+   * (the guard rejecting a hostile final path) or fail (the backend
+   * declining the write). Either way the caller learns it and the log
+   * carries why — a vanished buffer is never silent.
+   */
+  public function testFailedFlushReturnsFalseAndLogsOnce(): void {
+    $operator = $this->createMock(FilesystemOperator::class);
+    $operator->method('fileExists')->willReturn(FALSE);
+    $operator->method('writeStream')
+      ->willThrowException(UnableToWriteFile::atLocation('some/file.txt', 'disk full'));
+    $this->factory = $this->createMock(OperatorFactory::class);
+    $this->factory->method('operatorFor')->with('public')->willReturn($operator);
+    $this->logger->expects(self::once())->method('error');
+    $container = $this->createMock(ContainerInterface::class);
+    $container->method('get')->willReturnCallback(fn(string $id) => $id === 'flysystem.operator_factory' ? $this->factory : $this->logger);
+    \Drupal::setContainer($container);
+
+    $wrapper = new FlysystemPublicStream();
+    $opened_path = NULL;
+    self::assertTrue($wrapper->stream_open('public://some/file.txt', 'w', 0, $opened_path));
+    self::assertSame(3, $wrapper->stream_write('abc'));
+    self::assertFalse($wrapper->stream_flush(), 'a refused hand-back answers as a failed operation');
+  }
+
+  /**
+   * A close-time failure still records the loss.
+   *
+   * PHP's stream close has no failure channel — fclose() cannot report —
+   * so a buffer that could not be handed back at close must leave a log
+   * record instead of vanishing silently along with the data.
+   */
+  public function testCloseFailureLeavesRecord(): void {
+    $operator = $this->createMock(FilesystemOperator::class);
+    $operator->method('fileExists')->willReturn(FALSE);
+    $operator->method('writeStream')
+      ->willThrowException(UnableToWriteFile::atLocation('late.txt', 'nope'));
+    $this->factory = $this->createMock(OperatorFactory::class);
+    $this->factory->method('operatorFor')->with('public')->willReturn($operator);
+    $this->logger->expects(self::once())->method('error');
+    $container = $this->createMock(ContainerInterface::class);
+    $container->method('get')->willReturnCallback(fn(string $id) => $id === 'flysystem.operator_factory' ? $this->factory : $this->logger);
+    \Drupal::setContainer($container);
+
+    $wrapper = new FlysystemPublicStream();
+    $opened_path = NULL;
+    $wrapper->stream_open('public://late.txt', 'w', 0, $opened_path);
+    $wrapper->stream_write('lost');
+    $wrapper->stream_close();
+  }
+
+  /**
+   * A guard-refused path at open answers FALSE, never a fatal.
+   *
+   * The traversal guard throws on a hostile path; a path is user input,
+   * not configuration, so a refusal at open fails the fopen the way a
+   * missing file does — and records why. Typed binding errors (above)
+   * keep their contract; this is the storage layer, where refusals live.
+   */
+  public function testOpenRefusesGuardRejectedPathAndLogs(): void {
+    $operator = $this->createMock(FilesystemOperator::class);
+    $operator->method('fileExists')
+      ->willThrowException(PathTraversalDetected::forPath('../escape.txt'));
+    $this->factory = $this->createMock(OperatorFactory::class);
+    $this->factory->method('operatorFor')->with('public')->willReturn($operator);
+    $this->logger->expects(self::once())->method('warning');
+    $container = $this->createMock(ContainerInterface::class);
+    $container->method('get')->willReturnCallback(fn(string $id) => $id === 'flysystem.operator_factory' ? $this->factory : $this->logger);
+    \Drupal::setContainer($container);
+
+    $wrapper = new FlysystemPublicStream();
+    $opened_path = NULL;
+    self::assertFalse($wrapper->stream_open('public://../escape.txt', 'r', 0, $opened_path), 'a refused path fails the open as a failed operation');
   }
 
 }
