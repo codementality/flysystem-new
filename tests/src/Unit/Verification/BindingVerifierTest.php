@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\Verification;
 
+use Psr\Log\LoggerInterface;
 use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
 use League\Flysystem\Filesystem;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
@@ -54,6 +55,13 @@ final class BindingVerifierTest extends TestCase {
   private string $tempRoot = '';
 
   /**
+   * Logger channel double; findings must land here at their own severity.
+   *
+   * @var \Psr\Log\LoggerInterface|\PHPUnit\Framework\MockObject\MockObject
+   */
+  private $logger;
+
+  /**
    * The mock app root.
    *
    * @var string
@@ -65,6 +73,7 @@ final class BindingVerifierTest extends TestCase {
    */
   protected function setUp(): void {
     parent::setUp();
+    $this->logger = $this->createMock(LoggerInterface::class);
     $this->tempRoot = sys_get_temp_dir() . '/flysystem-m111-' . getmypid();
     $this->webRoot = $this->tempRoot . '/web';
     mkdir($this->webRoot, 0777, TRUE);
@@ -100,8 +109,8 @@ final class BindingVerifierTest extends TestCase {
     $validator = new SettingsValidator($this->webRoot, $inspector);
     $sourceObjects = array_map(static fn (array $layer): ArrayDefinitionSource => new ArrayDefinitionSource($layer), $sources);
     $resolver = new BindingResolver($sourceObjects, $validator);
-    $factory = new OperatorFactory($resolver, $manager, $inspector);
-    return new BindingVerifier($resolver, $factory, $sourceObjects);
+    $factory = new OperatorFactory($resolver, $manager, $inspector, $this->logger);
+    return new BindingVerifier($resolver, $factory, $sourceObjects, $this->logger);
   }
 
   /**

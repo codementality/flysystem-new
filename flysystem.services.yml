@@ -28,9 +28,25 @@ services:
   # Builds and memoizes operators per scheme.
   flysystem.operator_factory:
     class: Drupal\flysystem\Factory\OperatorFactory
-    arguments: ['@flysystem.binding_resolver', '@plugin.manager.flysystem_adapter', '@flysystem.feature_inspector']
+    arguments: ['@flysystem.binding_resolver', '@plugin.manager.flysystem_adapter', '@flysystem.feature_inspector', '@logger.channel.flysystem']
 
   # The verification surface consumed by tests now and tooling later.
   flysystem.binding_verifier:
     class: Drupal\flysystem\Verification\BindingVerifier
-    arguments: ['@flysystem.binding_resolver', '@flysystem.operator_factory', [ '@flysystem.settings_source' ]]
+    arguments: ['@flysystem.binding_resolver', '@flysystem.operator_factory', [ '@flysystem.settings_source' ], '@logger.channel.flysystem']
+
+  # Flysystem's own logger channel: every logged line is identifiable as
+  # coming from this module and flows to the database log, syslog and any
+  # downstream log handler through the standard logging pipeline.
+  logger.channel.flysystem:
+    parent: logger.channel_base
+    arguments: ['flysystem']
+
+  # Supplies the Flysystem section of the status report page.
+  flysystem.status_reporter:
+    class: Drupal\flysystem\Verification\StatusReporter
+    arguments: ['@flysystem.binding_verifier']
+
+  # Class-name alias so constructor injection resolves to the service above.
+  Drupal\flysystem\Verification\StatusReporter:
+    alias: flysystem.status_reporter

@@ -9,6 +9,7 @@ use Drupal\flysystem\Exception\FlysystemPackageMissingException;
 use Drupal\flysystem\Plugin\FlysystemAdapterManager;
 use Drupal\flysystem\Resolution\BindingResolver;
 use League\Flysystem\FilesystemOperator;
+use Psr\Log\LoggerInterface;
 
 /**
  * Turns a scheme into a working filesystem operator, or into nothing.
@@ -48,11 +49,16 @@ final class OperatorFactory {
    * @param callable $isLocalMode
    *   Predicate answering whether a plugin id serves local storage —
    *   built in production from the plugin's declared features.
+   * @param \Psr\Log\LoggerInterface $logger
+   *   This module's logger channel: build failures are recorded, with
+   *   their scheme context, before the exception propagates to whoever
+   *   is using the scheme.
    */
   public function __construct(
     protected readonly BindingResolver $resolver,
     protected readonly FlysystemAdapterManager $pluginManager,
     callable $isLocalMode,
+    protected readonly LoggerInterface $logger,
   ) {
     $this->isLocalMode = \Closure::fromCallable($isLocalMode);
   }
@@ -101,7 +107,9 @@ final class OperatorFactory {
     if (!isset($this->operators[$key])) {
       $plugin = $this->pluginManager->createInstance($plugin_id, $config);
       if (!$plugin->isAvailable()) {
-        throw new FlysystemPackageMissingException($plugin_id);
+        $exception = new FlysystemPackageMissingException($plugin_id);
+        $this->logger->error($exception->getMessage(), ['scheme' => $scheme, 'link' => NULL]);
+        throw $exception;
       }
       $this->operators[$key] = $plugin->buildFilesystem($config);
     }

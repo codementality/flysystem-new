@@ -6,6 +6,7 @@ namespace Drupal\flysystem\Verification;
 
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\Resolution\BindingResolver;
+use Psr\Log\LoggerInterface;
 
 /**
  * The verification surface for configured schemes.
@@ -25,14 +26,13 @@ use Drupal\flysystem\Resolution\BindingResolver;
  * remote round trips beyond what building the operator itself does) and
  * propagates no exception of any kind, whatever it reads.
  *
- * This surface only returns findings — it logs nothing, displays
- * nothing, and has no side effects. Deciding what a finding means to an
- * operator (printed on a status report, shown beside a form, written to
- * the watchdog log) belongs to the consuming tooling, so each consumer
- * can choose its own severity threshold and destination instead of the
- * checker presuming them.
+ * Findings are both returned and logged, each at its own severity, so a
+ * site operator sees the problem on the status report and the recording
+ * exists in the log for the database log, syslog and any downstream log
+ * integration regardless of who asked. The message text shown and logged
+ * is the same string; scheme context travels with it.
  */
-final class BindingVerifier {
+class BindingVerifier {
 
   /**
    * Constructs the verifier.
@@ -45,11 +45,16 @@ final class BindingVerifier {
    * @param \Drupal\flysystem\Definition\AdapterDefinitionSourceInterface[] $sources
    *   The configuration sources, used to enumerate which schemes exist
    *   so file-configured sites are verifiable with no UI involved.
+   * @param \Psr\Log\LoggerInterface $logger
+   *   This module's logger channel. Every finding is also logged at its
+   *   own severity, so the database log, syslog and any log-handler
+   *   integration receive what the user is shown.
    */
   public function __construct(
     protected readonly BindingResolver $resolver,
     protected readonly OperatorFactory $factory,
-    protected readonly array $sources = [],
+    protected readonly array $sources,
+    protected readonly LoggerInterface $logger,
   ) {
   }
 
@@ -82,6 +87,10 @@ final class BindingVerifier {
     }
     catch (\Throwable $e) {
       $findings[] = ['severity' => 'error', 'message' => $e->getMessage()];
+    }
+
+    foreach ($findings as $finding) {
+      $this->logger->log($finding['severity'], $finding['message'], ['scheme' => $scheme]);
     }
 
     return $findings;
