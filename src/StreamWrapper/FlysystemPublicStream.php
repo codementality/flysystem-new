@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\StreamWrapper;
 
+use Drupal\Component\Utility\UrlHelper;
+use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 
 /**
@@ -23,6 +25,34 @@ final class FlysystemPublicStream extends FlysystemStreamWrapperBase {
    */
   public static function getSchemeName(): string {
     return 'public';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getName() {
+    // Wording identical to the stock public scheme so the interface — and
+    // its translations — reads the same as core's own wrapper.
+    return $this->t('Public files');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getDescription() {
+    return $this->t('Public local files served by the webserver.');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getExternalUrl() {
+    // The same URL computation core's public wrapper performs: base URL
+    // from the site setting or the request root, path-encoded. Reusing
+    // the static helper keeps behavior that other code (file system
+    // settings form) already depends on in step with this wrapper.
+    $path = str_replace('\\', '/', $this->getTarget());
+    return PublicStream::baseUrl() . '/' . UrlHelper::encodePath($path);
   }
 
 }
