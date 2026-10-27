@@ -36,7 +36,7 @@ final class VerifyCommandTest extends TestCase {
   }
 
   /**
-   * Extracts the row data carried by the command result.
+   * Extracts the data rows carried by the command result.
    */
   private function rowsOf(CommandResult $result): RowsOfFields {
     $data = $result->getOutputData();
@@ -53,7 +53,7 @@ final class VerifyCommandTest extends TestCase {
       'temporary' => [],
     ]);
 
-    $result = $this->rowsOf($command->verify(['format' => 'table', 'strict' => FALSE]));
+    $result = $this->rowsOf($command->verify(NULL, ['format' => 'table', 'strict' => FALSE]));
 
     $rows = array_values($result->getArrayCopy());
     self::assertCount(2, $rows);
@@ -76,7 +76,7 @@ final class VerifyCommandTest extends TestCase {
       ],
     ]);
 
-    $rows = array_values($this->rowsOf($command->verify(['format' => 'table', 'strict' => FALSE]))->getArrayCopy());
+    $rows = array_values($this->rowsOf($command->verify(NULL, ['format' => 'table', 'strict' => FALSE]))->getArrayCopy());
 
     self::assertCount(3, $rows);
     self::assertSame('public', $rows[0]['scheme']);
@@ -92,7 +92,7 @@ final class VerifyCommandTest extends TestCase {
   public function testEmptyConfigurationSucceedsWithOneStatement(): void {
     $command = $this->command([]);
 
-    $result = $command->verify(['format' => 'table', 'strict' => TRUE]);
+    $result = $command->verify(NULL, ['format' => 'table', 'strict' => TRUE]);
     $rows = array_values($this->rowsOf($result)->getArrayCopy());
 
     self::assertSame(0, $result->getExitCode(), 'Reporting no findings is success even in strict mode.');
@@ -103,6 +103,43 @@ final class VerifyCommandTest extends TestCase {
   }
 
   /**
+   * A scheme list routes to that subset, not the whole configuration.
+   */
+  public function testSchemeArgumentVerifiesOnlyTheListedSchemes(): void {
+    $verifier = $this->createMock(BindingVerifier::class);
+    $verifier->expects(self::once())
+      ->method('verifyAll')
+      ->with(['private'])
+      ->willReturn(['private' => []]);
+    $verifier->expects(self::never())->method('verifyEverything');
+    $command = new FlysystemVerifyCommand($verifier);
+
+    $rows = array_values($this->rowsOf($command->verify(['private'], ['format' => 'table', 'strict' => FALSE]))->getArrayCopy());
+
+    self::assertCount(1, $rows);
+    self::assertSame('private', $rows[0]['scheme']);
+  }
+
+  /**
+   * Drush's single positional value arrives as a plain string, not a list.
+   */
+  public function testSingleSchemeStringRoutesToTheSubset(): void {
+    $verifier = $this->createMock(BindingVerifier::class);
+    $verifier->expects(self::once())
+      ->method('verifyAll')
+      ->with(['backup'])
+      ->willReturn(['backup' => [['severity' => 'error', 'message' => 'Broken.']]]);
+    $verifier->expects(self::never())->method('verifyEverything');
+    $command = new FlysystemVerifyCommand($verifier);
+
+    $rows = array_values($this->rowsOf($command->verify('backup', ['format' => 'table', 'strict' => TRUE]))->getArrayCopy());
+
+    self::assertCount(1, $rows);
+    self::assertSame('backup', $rows[0]['scheme']);
+    self::assertSame('error', $rows[0]['severity']);
+  }
+
+  /**
    * Findings do not fail the run by default: the command reports.
    */
   public function testFindingsDoNotChangeExitCodeByDefault(): void {
@@ -110,7 +147,7 @@ final class VerifyCommandTest extends TestCase {
       'public' => [['severity' => 'error', 'message' => 'Broken.']],
     ]);
 
-    self::assertSame(0, $command->verify(['format' => 'table', 'strict' => FALSE])->getExitCode());
+    self::assertSame(0, $command->verify(NULL, ['format' => 'table', 'strict' => FALSE])->getExitCode());
   }
 
   /**
@@ -120,12 +157,12 @@ final class VerifyCommandTest extends TestCase {
     $withError = $this->command([
       'public' => [['severity' => 'error', 'message' => 'Broken.']],
     ]);
-    self::assertSame(1, $withError->verify(['format' => 'table', 'strict' => TRUE])->getExitCode());
+    self::assertSame(1, $withError->verify(NULL, ['format' => 'table', 'strict' => TRUE])->getExitCode());
 
     $warningsOnly = $this->command([
       'public' => [['severity' => 'warning', 'message' => 'Noted.']],
     ]);
-    self::assertSame(0, $warningsOnly->verify(['format' => 'table', 'strict' => TRUE])->getExitCode(), 'Strict mode gates on errors; warnings are reportable noise.');
+    self::assertSame(0, $warningsOnly->verify(NULL, ['format' => 'table', 'strict' => TRUE])->getExitCode(), 'Strict mode gates on errors; warnings are reportable noise.');
   }
 
 }
