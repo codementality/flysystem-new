@@ -7,8 +7,14 @@ namespace Drupal\flysystem\Definition;
 /**
  * Computes the stable identity key of a merged adapter definition.
  *
- * The operator factory memoizes built filesystems under this key, so the
- * checksum must be stable in exactly the ways assembly is not:
+ * Composed by the classes that memoize or reason about operator identity
+ * (the factory; later, the verification API) rather than exposed as a
+ * global utility: the checksum is internal machinery. Adapter authors
+ * implement the plugin interface and never compute keys, so nothing here
+ * is public or static — the entry point is protected and reaches the
+ * outside world only through a composing class.
+ *
+ * The key must be stable in exactly the ways assembly is not:
  *
  * - Named mapping keys carry no meaning of their own order; every mapping
  *   is sorted recursively before hashing, so the same definition merged
@@ -26,7 +32,7 @@ namespace Drupal\flysystem\Definition;
  * rotate without forking operator identity, and the plaintext never
  * reaches a cache key, log line, or diagnostic.
  */
-final class DefinitionChecksum {
+trait DefinitionChecksumTrait {
 
   /**
    * Returns the hex identity digest of a merged definition.
@@ -38,9 +44,14 @@ final class DefinitionChecksum {
    * @return string
    *   A 64-character lowercase SHA-256 hex digest, stable across
    *   processes and releases for the same effective definition.
+   *
+   * @throws \InvalidArgumentException
+   *   When the definition cannot be encoded — definitions hold plain
+   *   scalar values, and a resource or object is a wiring bug worth a
+   *   loud failure, not a silent key collision.
    */
-  public static function calculate(array $definition): string {
-    $normalized = self::normalize($definition);
+  protected function definitionChecksum(array $definition): string {
+    $normalized = $this->normalizeDefinition($definition);
     $encoded = json_encode($normalized, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
     if ($encoded === FALSE) {
       throw new \InvalidArgumentException('The definition could not be encoded for checksumming; definitions must hold plain scalar values.');
@@ -57,7 +68,7 @@ final class DefinitionChecksum {
    * @return mixed
    *   The normalized value.
    */
-  private static function normalize(mixed $value): mixed {
+  private function normalizeDefinition(mixed $value): mixed {
     if (!is_array($value)) {
       return $value;
     }
@@ -66,7 +77,7 @@ final class DefinitionChecksum {
       // encoder sees.
       $normalized = [];
       foreach ($value as $item) {
-        $item = self::normalize($item);
+        $item = $this->normalizeDefinition($item);
         if ($item !== []) {
           $normalized[] = $item;
         }
@@ -75,7 +86,7 @@ final class DefinitionChecksum {
     }
     $normalized = [];
     foreach ($value as $key => $item) {
-      $item = self::normalize($item);
+      $item = $this->normalizeDefinition($item);
       if ($item !== []) {
         // An empty section is the same definition as an absent one.
         $normalized[$key] = $item;
