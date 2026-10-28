@@ -22,7 +22,6 @@ use League\Flysystem\Visibility;
 // url_stat, and friends) are dictated by PHP's stream wrapper protocol:
 // the engine calls them by exactly these names. Drupal core's own wrapper
 // base class declares the same names and faces the same rule.
-
 /**
  * Shared machinery for the Flysystem-backed storage wrappers.
  *
@@ -887,7 +886,7 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
       if (!$operator->directoryExists($target)) {
         return FALSE;
       }
-      foreach ($operator->listContents($target, FALSE) as $ignored) {
+      if ($operator->listContents($target, FALSE)->toArray() !== []) {
         return FALSE;
       }
       $operator->deleteDirectory($target);

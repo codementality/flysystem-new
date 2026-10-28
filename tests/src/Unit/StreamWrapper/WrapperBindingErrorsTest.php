@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Unit\StreamWrapper;
 
+use League\Flysystem\FilesystemOperator;
 use Drupal\flysystem\Exception\FlysystemPackageMissingException;
 use Drupal\flysystem\Exception\FlysystemPluginNotFoundException;
 use Drupal\flysystem\Exception\InvalidAdapterIdException;
@@ -172,7 +173,7 @@ final class WrapperBindingErrorsTest extends TestCase {
    * NULL operator here is a defensive state — it must still refuse
    * quietly rather than crash or claim a problem.
    */
-  public function testCoreNativeAnswerRefusesOpenWithoutARecord(): void {
+  public function testCoreNativeAnswerRefusesOpenWithNoRecord(): void {
     $this->factory->method('operatorFor')->with('public')->willReturn(NULL);
     $this->logger->expects(self::never())->method('error');
     self::assertFalse($this->open());
@@ -185,7 +186,7 @@ final class WrapperBindingErrorsTest extends TestCase {
    * though the read path runs through the same guards.
    */
   public function testHealthyOpenLeavesNoRecord(): void {
-    $operator = $this->createMock(\League\Flysystem\FilesystemOperator::class);
+    $operator = $this->createMock(FilesystemOperator::class);
     $operator->method('fileExists')->willReturn(TRUE);
     $stream = fopen('php://memory', 'r+b');
     fwrite($stream, 'content');
@@ -197,8 +198,11 @@ final class WrapperBindingErrorsTest extends TestCase {
   }
 
   /**
-   * Supplies every typed error the storage seam declares, one per data
-   * set, with the record expectation the wrapper owes it.
+   * One data set per typed error the storage seam declares.
+   *
+   * Each carries the record expectation the wrapper owes it: everything
+   * raised before the seam's own record excepts the unavailable-backend
+   * error, which the seam writes itself.
    *
    * @return array<string, array{0: \Throwable, 1: bool}>
    *   Named data sets of exception and expected-wrapper-record flag.
@@ -209,8 +213,14 @@ final class WrapperBindingErrorsTest extends TestCase {
       'undefined adapter definition' => [new UnknownAdapterDefinitionException('missingid', 'public'), TRUE],
       'invalid adapter id' => [new InvalidAdapterIdException('Bad-Id'), TRUE],
       'invalid scheme name' => [new InvalidSchemeNameException('Not valid'), TRUE],
-      'malformed settings structure' => [new InvalidSettingsStructureException('flysystem.public', 'an array with driver and config'), TRUE],
-      'public root outside webroot' => [new PublicRootOutsideWebrootException('public', '/etc/passwd', '/var/www/html/web'), TRUE],
+      'malformed settings structure' => [
+        new InvalidSettingsStructureException('flysystem.public', 'an array with driver and config'),
+        TRUE,
+      ],
+      'public root outside webroot' => [
+        new PublicRootOutsideWebrootException('public', '/etc/passwd', '/var/www/html/web'),
+        TRUE,
+      ],
       'plugin not found' => [new FlysystemPluginNotFoundException('sftp'), TRUE],
       'backend package unavailable' => [new FlysystemPackageMissingException('sftp'), FALSE],
     ];

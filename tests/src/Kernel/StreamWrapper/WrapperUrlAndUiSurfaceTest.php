@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+use Symfony\Component\Routing\Exception\RouteNotFoundException;
+use Symfony\Component\Routing\Route;
+use Symfony\Component\Routing\RouteCollection;
+use Symfony\Component\HttpFoundation\Request;
+use Drupal\Core\Routing\RouteProviderInterface;
+use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
@@ -172,7 +178,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
     $this->rebuildWithBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05']],
     ]);
-    $untouchable = $this->createMock(\Drupal\flysystem\Factory\OperatorFactory::class);
+    $untouchable = $this->createMock(OperatorFactory::class);
     $untouchable->expects(self::never())->method('operatorFor');
     $untouchable->expects(self::never())->method('definitionFor');
     $this->container->set('flysystem.operator_factory', $untouchable);
@@ -250,23 +256,23 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
    * wrappers and this module's be compared through the real generator.
    */
   private function installSystemRoutes(): void {
-    $provider = new class implements \Drupal\Core\Routing\RouteProviderInterface {
+    $provider = new class implements RouteProviderInterface {
 
       /**
        * {@inheritdoc}
        */
-      public function getRouteCollectionForRequest(\Symfony\Component\HttpFoundation\Request $request): \Symfony\Component\Routing\RouteCollection {
-        return new \Symfony\Component\Routing\RouteCollection();
+      public function getRouteCollectionForRequest(Request $request): RouteCollection {
+        return new RouteCollection();
       }
 
       /**
        * {@inheritdoc}
        */
-      public function getRouteByName($name): \Symfony\Component\Routing\Route {
+      public function getRouteByName($name): Route {
         return match ($name) {
-          'system.private_file_download' => new \Symfony\Component\Routing\Route('/system/files/{filepath}'),
-          'system.temporary' => new \Symfony\Component\Routing\Route('/system/temporary'),
-          default => throw new \Symfony\Component\Routing\Exception\RouteNotFoundException("Route {$name} does not exist."),
+          'system.private_file_download' => new Route('/system/files/{filepath}'),
+          'system.temporary' => new Route('/system/temporary'),
+          default => throw new RouteNotFoundException("Route {$name} does not exist."),
         };
       }
 
@@ -280,15 +286,15 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
       /**
        * {@inheritdoc}
        */
-      public function getRoutesByPattern($pattern): \Symfony\Component\Routing\RouteCollection {
-        return new \Symfony\Component\Routing\RouteCollection();
+      public function getRoutesByPattern($pattern): RouteCollection {
+        return new RouteCollection();
       }
 
       /**
        * {@inheritdoc}
        */
-      public function getAllRoutes(): \Symfony\Component\Routing\RouteCollection {
-        return new \Symfony\Component\Routing\RouteCollection();
+      public function getAllRoutes(): RouteCollection {
+        return new RouteCollection();
       }
 
       /**
