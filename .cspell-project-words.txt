@@ -1,8 +1,16 @@
+aaaaabbbbb
+aaaaaxxxxx
 checksumming
 chmodded
 chmods
+emptydir
+fatals
+missingid
 mybackend
+nosuch
 pluggability
+rrmdir
 sftpbackup
 unconfigured
+unservable
 yourmodule

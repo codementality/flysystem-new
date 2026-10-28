@@ -18,7 +18,8 @@ use Drupal\flysystem\Plugin\FlysystemAdapterInterface;
 use League\Flysystem\FilesystemOperator;
 
 #[FlysystemAdapter(id: 'mybackend', label: new TranslatableMarkup('My backend'))]
-class MyBackend extends FlysystemAdapterBase implements FlysystemAdapterInterface {
+class MyBackend extends FlysystemAdapterBase implements
+FlysystemAdapterInterface {
 
   public function buildFilesystem(array $config = []): FilesystemOperator {
     // Return a configured League\Flysystem\FilesystemOperator for the

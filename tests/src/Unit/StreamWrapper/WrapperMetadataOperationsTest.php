@@ -510,15 +510,16 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * Every metadata option except touch has no operator answer: refused,
-   * silently, and never reaching storage. The storage abstraction expresses
+   * Every metadata option except touch is refused, silently.
+   *
+   * No operator answer exists for them: the storage abstraction expresses
    * permissions as public/private visibility — never as raw mode bits —
    * and ownership has no representation at all. Half-mapping some chmod
-   * values while refusing others would make a caller's success meaningless,
-   * so the complete non-touch family answers FALSE before any question is
-   * asked. The touch case is the only option PHP's stream layer passes for
-   * a supported operation (touch()); this matrix pins the other five
-   * constants the protocol defines.
+   * values while refusing others would make a caller's success
+   * meaningless, so the complete non-touch family answers FALSE before
+   * any question is asked. The touch case is the only option PHP's stream
+   * layer passes for a supported operation; this matrix pins the other
+   * five constants the protocol defines.
    */
   #[DataProvider('unsupportedMetadataOptions')]
   public function testUnsupportedStreamMetadataOptionsRefuseWithoutTouchingStorage(int $option): void {
