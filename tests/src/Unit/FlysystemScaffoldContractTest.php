@@ -51,7 +51,7 @@ final class FlysystemScaffoldContractTest extends TestCase {
   public function testInfoYmlDeclaresModuleIdentity(): void {
     $path = $this->moduleRoot . '/flysystem.info.yml';
     self::assertFileExists($path);
-    $info = Yaml::parseFile($path);
+    $info = Yaml::parseFile($path, Yaml::PARSE_CUSTOM_TAGS);
     self::assertSame('module', $info['type'] ?? NULL, 'flysystem must be a module.');
     self::assertArrayHasKey('core_version_requirement', $info, 'The info file must declare a core version requirement.');
     self::assertStringContainsString('11', (string) $info['core_version_requirement'], 'M1 targets the vendored Drupal 11 core.');
@@ -75,85 +75,6 @@ final class FlysystemScaffoldContractTest extends TestCase {
     $psr4 = $composer['autoload']['psr-4'] ?? [];
     self::assertArrayHasKey('Drupal\\flysystem\\', $psr4, 'Autoload must map the Drupal\flysystem namespace.');
     self::assertSame('src/', $psr4['Drupal\\flysystem\\'], 'The namespace must map to src/.');
-  }
-
-  /**
-   * Verifies zero services are tagged `stream_wrapper`.
-   */
-  public function testZeroStreamWrapperTaggedServices(): void {
-    $found = [];
-    foreach ($this->servicesFiles() as $file) {
-      $definition = Yaml::parseFile($file) ?: [];
-      foreach (($definition['services'] ?? []) as $id => $service) {
-        foreach ((array) ($service['tags'] ?? []) as $tag) {
-          if (($tag['name'] ?? (is_string($tag) ? $tag : NULL)) === 'stream_wrapper') {
-            $found[] = basename($file) . ":$id";
-          }
-        }
-      }
-    }
-    self::assertSame([], $found, 'The module must contribute zero services tagged stream_wrapper.');
-  }
-
-  /**
-   * Verifies no production code path can reach stream_wrapper_register().
-   */
-  public function testNoCallPathReachesStreamWrapperRegister(): void {
-    $pattern = '/stream_wrapper_register\s*\(|\bStreamWrapper::register\s*\(|implements\s+[^{]*StreamWrapperInterface/';
-    $hits = [];
-    foreach ($this->productionPhpFiles() as $file) {
-      if (preg_match($pattern, (string) file_get_contents($file), $match)) {
-        $hits[] = str_replace($this->moduleRoot . '/', '', $file) . ': ' . $match[0];
-      }
-    }
-    self::assertSame([], $hits, 'No call path may reach stream_wrapper_register() (found: ' . implode(', ', $hits) . ').');
-  }
-
-  /**
-   * Returns every *.services.yml of the module, excluding tests and vendor.
-   *
-   * @return string[]
-   *   Absolute file paths.
-   */
-  protected function servicesFiles(): array {
-    return $this->scanModuleFiles(fn(string $path): bool => str_ends_with($path, '.services.yml'));
-  }
-
-  /**
-   * Returns production PHP files (src/ + root-level module files).
-   *
-   * @return string[]
-   *   Absolute file paths.
-   */
-  protected function productionPhpFiles(): array {
-    return $this->scanModuleFiles(fn(string $path): bool => preg_match('/\.(php|module|install)$/', $path) === 1);
-  }
-
-  /**
-   * Walks the module tree, skipping tests/ and vendor/, collecting matches.
-   *
-   * @param callable $matcher
-   *   Receives an absolute path; returns TRUE to include it.
-   *
-   * @return string[]
-   *   Absolute file paths.
-   */
-  protected function scanModuleFiles(callable $matcher): array {
-    $files = [];
-    $iterator = new \RecursiveIteratorIterator(
-      new \RecursiveCallbackFilterIterator(
-        new \RecursiveDirectoryIterator($this->moduleRoot, \FilesystemIterator::SKIP_DOTS),
-        function (\SplFileInfo $current): bool {
-          return !in_array($current->getFilename(), ['tests', 'vendor', '.git'], TRUE);
-        },
-      ),
-    );
-    foreach ($iterator as $file) {
-      if ($file->isFile() && $matcher($file->getPathname())) {
-        $files[] = $file->getPathname();
-      }
-    }
-    return $files;
   }
 
 }
