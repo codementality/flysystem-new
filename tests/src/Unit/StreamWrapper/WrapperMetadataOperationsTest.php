@@ -7,6 +7,7 @@ namespace Drupal\flysystem\Tests\Unit\StreamWrapper;
 use League\Flysystem\DirectoryListing;
 use League\Flysystem\DirectoryAttributes;
 use Drupal\Core\Site\Settings;
+use Drupal\flysystem\Exception\FlysystemPackageMissingException;
 use Drupal\flysystem\Exception\UnknownAdapterPluginException;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
@@ -16,7 +17,9 @@ use League\Flysystem\UnableToCreateDirectory;
 use League\Flysystem\UnableToDeleteFile;
 use League\Flysystem\UnableToMoveFile;
 use League\Flysystem\UnableToRetrieveMetadata;
+use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -516,18 +519,102 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * A broken binding raises its typed error on metadata, touching nothing.
+   * Wires a factory whose resolution always raises the given error.
+   *
+   * @param \Throwable $error
+   *   The typed binding error the storage seam raises on every question.
+   * @param \Psr\Log\LoggerInterface&\PHPUnit\Framework\MockObject\MockObject $logger
+   *   Receives the channel double so tests can pin records.
+   * @param int $resolutions
+   *   How many times the wrapper may consult the factory.
+   *
+   * @return \Drupal\flysystem\StreamWrapper\FlysystemPublicStream
+   *   A fresh wrapper bound to the broken scheme.
    */
-  public function testBrokenBindingSurfacesTypedAtMetadata(): void {
+  private function brokenBindingWrapper(\Throwable $error, &$logger, int $resolutions = 1): FlysystemPublicStream {
     $factory = $this->createMock(OperatorFactory::class);
-    $factory->method('definitionFor')->willThrowException(new UnknownAdapterPluginException('nosuch', 'public'));
+    $factory->expects(self::exactly($resolutions))->method('definitionFor')
+      ->with('public')
+      ->willThrowException($error);
+    $logger = $this->createMock(LoggerInterface::class);
     $container = $this->createMock(ContainerInterface::class);
-    $container->method('get')->with('flysystem.operator_factory')->willReturn($factory);
+    $container->method('get')
+      ->willReturnCallback(fn(string $id) => match ($id) {
+        'flysystem.operator_factory' => $factory,
+        'logger.channel.flysystem' => $logger,
+        default => NULL,
+      });
+    $container->method('getParameter')->with('app.root')->willReturn('/srv/app');
     \Drupal::setContainer($container);
+    return new FlysystemPublicStream();
+  }
 
-    $this->expectException(UnknownAdapterPluginException::class);
-    $this->files['x'] = ['size' => 1, 'mtime' => 1, 'visibility' => 'public', 'contents' => 'x'];
-    (new FlysystemPublicStream())->url_stat('public://x', 0);
+  /**
+   * A broken binding refuses every metadata/directory operation.
+   *
+   * The graceful posture for binding errors is one answer everywhere:
+   * a configuration defect reached through any wrapper method fails that
+   * operation and records one actionable error per instance, never an
+   * exception escaping into PHP's stream layer.
+   */
+  #[DataProvider('metadataAndDirectoryOperations')]
+  public function testBrokenBindingRefusesEveryMetadataAndDirectoryOperation(callable $operation): void {
+    $error = new UnknownAdapterPluginException('nosuch', 'public');
+    $wrapper = $this->brokenBindingWrapper($error, $logger);
+    $logger->expects(self::once())->method('error')->with(
+      self::identicalTo($error->getMessage()),
+      self::callback(static function ($context) use ($error): bool {
+        return ($context['scheme'] ?? NULL) === 'public' && ($context['exception'] ?? NULL) === $error;
+      }),
+    );
+    self::assertFalse($operation($wrapper), 'A broken binding must answer this operation as a refusal.');
+  }
+
+  /**
+   * The unavailable-backend error is not recorded twice on this path.
+   *
+   * The storage seam records that failure itself before throwing; the
+   * wrapper swallows it without a second record for the one event.
+   */
+  public function testUnavailableBackendNotRecordedTwiceOnMetadataPath(): void {
+    $wrapper = $this->brokenBindingWrapper(new FlysystemPackageMissingException('sftp'), $logger);
+    $logger->expects(self::never())->method('error');
+    self::assertFalse($wrapper->url_stat('public://x', 0));
+  }
+
+  /**
+   * One broken instance asks the factory once, however many operations.
+   *
+   * The refusal memo is shared: after the first typed error the instance
+   * answers every later operation from the memo without re-entering the
+   * storage seam or repeating the record.
+   */
+  public function testBrokenBindingResolvesOnceAcrossOperations(): void {
+    $wrapper = $this->brokenBindingWrapper(new UnknownAdapterPluginException('nosuch', 'public'), $logger, 1);
+    $logger->expects(self::once())->method('error');
+    self::assertFalse($wrapper->url_stat('public://x', 0));
+    self::assertFalse($wrapper->mkdir('public://d', 0775, 0));
+    self::assertFalse($wrapper->dir_opendir('public://d', 0));
+  }
+
+  /**
+   * Every metadata/directory entry point on a fresh broken instance.
+   *
+   * @return array<string, array{0: callable}>
+   *   Named closures applying one wrapper method and returning its
+   *   PHP-visible answer.
+   */
+  public static function metadataAndDirectoryOperations(): array {
+    return [
+      'stat a file' => [static fn(FlysystemPublicStream $w) => $w->url_stat('public://a.txt', 0)],
+      'canonical path' => [static fn(FlysystemPublicStream $w) => $w->realpath()],
+      'create directory' => [static fn(FlysystemPublicStream $w) => $w->mkdir('public://d', 0775, 0)],
+      'remove directory' => [static fn(FlysystemPublicStream $w) => $w->rmdir('public://d', 0)],
+      'delete file' => [static fn(FlysystemPublicStream $w) => $w->unlink('public://a.txt')],
+      'move file' => [static fn(FlysystemPublicStream $w) => $w->rename('public://a.txt', 'public://b.txt')],
+      'open directory' => [static fn(FlysystemPublicStream $w) => $w->dir_opendir('public://d', 0)],
+      'touch file' => [static fn(FlysystemPublicStream $w) => $w->stream_metadata('public://a.txt', STREAM_META_TOUCH, [])],
+    ];
   }
 
 }
