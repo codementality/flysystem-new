@@ -5,8 +5,11 @@
     "license": "GPL-2.0-or-later",
     "homepage": "https://github.com/codementality/flysystem-new",
     "require": {
-        "league/flysystem": "^3",
-        "league/flysystem-local": "^3"
+        "league/flysystem": "^3.36",
+        "league/flysystem-local": "^3.36"
+    },
+    "require-dev": {
+        "league/flysystem-memory": "^3.36"
     },
     "autoload": {
         "psr-4": {
