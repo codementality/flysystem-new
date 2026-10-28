@@ -267,20 +267,22 @@ final class WrapperHandleSemanticsTest extends TestCase {
   }
 
   /**
-   * A broken binding raises its typed error at open, touching nothing.
+   * A broken binding refuses the open, recorded once, touching nothing.
    */
-  public function testBrokenBindingSurfacesAtOpenAndTouchesNothing(): void {
+  public function testBrokenBindingRefusesAtOpenAndTouchesNothing(): void {
     $factory = $this->createMock(OperatorFactory::class);
     $factory->method('operatorFor')
+      ->with('public')
       ->willThrowException(new UnknownAdapterPluginException('nosuchplugin', 'public'));
     $container = $this->createMock(ContainerInterface::class);
-    $container->method('get')->with('flysystem.operator_factory')->willReturn($factory);
+    $container->method('get')
+      ->willReturnCallback(fn(string $id) => $id === 'flysystem.operator_factory' ? $factory : $this->logger);
     \Drupal::setContainer($container);
 
-    $this->expectException(UnknownAdapterPluginException::class);
+    $this->logger->expects(self::once())->method('error');
     $wrapper = new FlysystemPublicStream();
     $opened_path = NULL;
-    $wrapper->stream_open('public://whatever.txt', 'r', 0, $opened_path);
+    self::assertFalse($wrapper->stream_open('public://whatever.txt', 'r', 0, $opened_path), 'The typed binding error answers as a failed open, never an escaping exception.');
   }
 
   /**

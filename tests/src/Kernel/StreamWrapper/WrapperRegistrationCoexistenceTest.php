@@ -8,7 +8,6 @@ use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StreamWrapper\TemporaryStream;
-use Drupal\flysystem\Exception\FlysystemConfigExceptionInterface;
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
 use Drupal\flysystem\StreamWrapper\FlysystemTemporaryStream;
 use Drupal\KernelTests\KernelTestBase;
@@ -23,9 +22,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * bound schemes are re-pointed at this module's wrapper classes, unbound
  * schemes keep core's own classes untouched, and the type bits every UI
  * filter reads survive the swap. Configuration is never consulted at
- * container build time: a binding that would fail validation still builds
- * silently, and its typed error surfaces only when a file operation —
- * through PHP's own stream functions — actually reaches the scheme.
+   * container build time: a binding that would fail validation still builds
+   * silently, and a file operation that reaches it fails as a logged
+   * refusal through PHP's own stream functions.
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
@@ -146,29 +145,24 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
   }
 
   /**
-   * A binding with an unknown plugin builds silently and fails on touch.
+   * A binding with an unknown plugin builds silently and refuses on touch.
    *
    * Container build must not resolve or validate anything: the site
-   * boots, the wrapper is registered, and the typed configuration error
-   * surfaces only when a file operation reaches the scheme — including
-   * through PHP's own stream functions, which is the proof that dispatch
-   * arrived at this module's registered class and nowhere else.
+   * boots, the wrapper is registered, and a file operation reaching the
+   * broken scheme — including through PHP's own stream functions, which
+   * is the proof that dispatch arrived at this module's registered class
+   * and nowhere else — fails as a refusal the caller can see, never as a
+   * crash escaping into the stream layer.
    */
-  public function testBrokenBindingBuildsSilentlyAndErrorsOnTouch(): void {
+  public function testBrokenBindingBuildsSilentlyAndRefusesOnTouch(): void {
     $this->rebuildWithBindings([
       'public' => ['driver' => 'nosuchplugin'],
     ]);
     $manager = $this->container->get('stream_wrapper_manager');
     self::assertSame(FlysystemPublicStream::class, $manager->getClass('public'), 'Registration happened without consulting the binding details.');
 
-    $exception = NULL;
-    try {
-      fopen('public://x.txt', 'r');
-    }
-    catch (FlysystemConfigExceptionInterface $e) {
-      $exception = $e;
-    }
-    self::assertInstanceOf(FlysystemConfigExceptionInterface::class, $exception, 'Reaching the broken scheme through PHP stream functions must raise its typed error, not a silent core-native fallback.');
+    $handle = @fopen('public://x.txt', 'r');
+    self::assertFalse($handle, 'Reaching the broken scheme through PHP stream functions must fail the operation, not crash it or fall back to core-native storage.');
   }
 
   /**
