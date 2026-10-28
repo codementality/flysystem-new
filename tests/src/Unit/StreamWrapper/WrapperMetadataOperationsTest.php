@@ -510,12 +510,38 @@ final class WrapperMetadataOperationsTest extends TestCase {
   }
 
   /**
-   * Chmod/chown have no operator answer: refused, never half-applied.
+   * Every metadata option except touch has no operator answer: refused,
+   * silently, and never reaching storage. The storage abstraction expresses
+   * permissions as public/private visibility — never as raw mode bits —
+   * and ownership has no representation at all. Half-mapping some chmod
+   * values while refusing others would make a caller's success meaningless,
+   * so the complete non-touch family answers FALSE before any question is
+   * asked. The touch case is the only option PHP's stream layer passes for
+   * a supported operation (touch()); this matrix pins the other five
+   * constants the protocol defines.
    */
-  public function testOwnerAndAccessMetadataRefused(): void {
-    self::assertFalse($this->wrapper()->stream_metadata('public://t.txt', STREAM_META_ACCESS, 0700));
-    self::assertFalse($this->wrapper()->stream_metadata('public://t.txt', STREAM_META_OWNER, 1000));
-    self::assertFalse($this->wrapper()->stream_metadata('public://t.txt', STREAM_META_GROUP, 1000));
+  #[DataProvider('unsupportedMetadataOptions')]
+  public function testUnsupportedStreamMetadataOptionsRefuseWithoutTouchingStorage(int $option): void {
+    $wrapper = $this->wrapper();
+    $asked_before = $this->calls;
+    self::assertFalse($wrapper->stream_metadata('public://t.txt', $option, 0700));
+    self::assertSame($asked_before, $this->calls, 'A refused metadata option never reaches the operator.');
+  }
+
+  /**
+   * The metadata options PHP's stream protocol defines beyond touch.
+   *
+   * @return array<string, array{0: int}>
+   *   One data set per option constant.
+   */
+  public static function unsupportedMetadataOptions(): array {
+    return [
+      'owner name' => [STREAM_META_OWNER_NAME],
+      'owner' => [STREAM_META_OWNER],
+      'group name' => [STREAM_META_GROUP_NAME],
+      'group' => [STREAM_META_GROUP],
+      'access (chmod)' => [STREAM_META_ACCESS],
+    ];
   }
 
   /**
