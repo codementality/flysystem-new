@@ -294,22 +294,39 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
   }
 
   /**
-   * The resolved storage bundle for this scheme, or NULL if core-native.
+   * The resolved storage bundle for this scheme, or NULL if unavailable.
    *
    * Carries the operator plus the facts metadata and path questions need
    * (plugin id, merged config, and whether the backend serves local
    * storage), all from one lazy resolution through the factory. Memoized
-   * per instance the same way the operator is.
+   * per instance the same way the operator is. A broken binding follows
+   * the same posture as operator resolution: typed errors answer as no
+   * bundle (callers refuse), one record per instance, the already-recorded
+   * unavailable-backend error swallowed without a second.
    *
    * @return array{operator: \League\Flysystem\FilesystemOperator, plugin: string, config: array, local: bool}|null
-   *   The bundle, or NULL when the scheme resolves to core-native storage.
+   *   The bundle, or NULL when the scheme resolves to core-native
+   *   storage or its binding is broken.
    */
   protected function storage(): ?array {
     if (!$this->storageResolved) {
       $scheme = static::getSchemeName();
-      /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
-      $factory = \Drupal::service('flysystem.operator_factory');
-      $this->storageBundle = $factory->definitionFor($scheme);
+      try {
+        /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
+        $factory = \Drupal::service('flysystem.operator_factory');
+        $this->storageBundle = $factory->definitionFor($scheme);
+      }
+      catch (FlysystemPackageMissingException) {
+        // Recorded by the factory itself before it threw; recording it
+        // again here would double-log the one failure.
+      }
+      catch (FlysystemConfigExceptionInterface | FlysystemPluginNotFoundException $e) {
+        $this->logger()->error($e->getMessage(), [
+          'scheme' => $scheme,
+          'link' => NULL,
+          'exception' => $e,
+        ]);
+      }
       $this->storageResolved = TRUE;
       $this->operator = $this->storageBundle['operator'] ?? NULL;
     }
