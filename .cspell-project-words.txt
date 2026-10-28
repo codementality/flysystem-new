@@ -1,5 +1,6 @@
 aaaaabbbbb
 aaaaaxxxxx
+basenames
 checksumming
 chmodded
 chmods
@@ -8,7 +9,12 @@ fatals
 missingid
 mybackend
 nosuch
+nosuchplugin
+pluggabilit
+parameterless
 pluggability
+repointed
+repoints
 rrmdir
 sftpbackup
 unconfigured
