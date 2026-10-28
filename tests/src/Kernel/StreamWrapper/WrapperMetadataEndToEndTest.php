@@ -276,4 +276,28 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
     self::assertGreaterThan(0, filemtime('private://cycle.txt'));
   }
 
+  /**
+   * Mode and ownership changes refuse through PHP's own functions, with
+   * nothing half-applied. chmod() and chown() reach the wrapper as
+   * metadata options the storage abstraction cannot answer; the caller
+   * must see them fail, the real file must keep its bits and bytes
+   * exactly as the write left them, and the scheme must stay fully
+   * serviceable afterwards.
+   */
+  public function testChmodAndChownRefuseWithoutHalfApplying(): void {
+    $operator = $this->bindPrivate();
+    $operator->write('guarded-modes.txt', 'payload');
+
+    $realPath = $this->root . '/guarded-modes.txt';
+    self::assertFileExists($realPath);
+    $mode_before = fileperms($realPath);
+
+    self::assertFalse(@chmod('private://guarded-modes.txt', 0700), 'A mode change has no operator answer; PHP must see it fail.');
+    self::assertFalse(@chown('private://guarded-modes.txt', 0), 'Ownership has no operator answer either.');
+
+    clearstatcache(TRUE, $realPath);
+    self::assertSame($mode_before, fileperms($realPath), 'The refusal leaves the real bits untouched.');
+    self::assertSame('payload', file_get_contents('private://guarded-modes.txt'), 'The file stays fully serviceable after the refusals.');
+  }
+
 }
