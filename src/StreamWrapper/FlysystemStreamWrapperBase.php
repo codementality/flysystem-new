@@ -7,6 +7,9 @@ namespace Drupal\flysystem\StreamWrapper;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\flysystem\Exception\FlysystemConfigExceptionInterface;
+use Drupal\flysystem\Exception\FlysystemPackageMissingException;
+use Drupal\flysystem\Exception\FlysystemPluginNotFoundException;
 use League\Flysystem\FilesystemException;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
@@ -25,7 +28,9 @@ use Psr\Log\LoggerInterface;
  * factory lazily at the moment a file operation actually needs it. A
  * scheme whose binding is broken therefore behaves exactly as the
  * foundation promises: container build and install stay silent, and the
- * typed configuration error surfaces on first touch of that scheme.
+ * binding error surfaces on first touch of that scheme — as a failed
+ * operation with a logged record, never as an exception escaping into
+ * PHP's stream layer, where it would abort the request over a file open.
  *
  * Storage operations are delegated to the filesystem operator built for
  * this wrapper's scheme, never to an adapter directly: routing through
@@ -178,24 +183,40 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    *
    * Resolution happens at operation time, never earlier: the storage
    * factory validates the binding lazily and raises typed errors for the
-   * touched scheme only. The memoized operator serves every later call
-   * on this instance; PHP's protocol itself receives only success or
-   * failure from the stream methods.
+   * touched scheme only. A binding error is a configuration defect, but
+   * its consequence belongs to the file layer: PHP's stream protocol has
+   * no failure channel beyond the return value, so every typed error the
+   * factory declares is caught here and answered as no operator — the
+   * same NULL an unbound scheme yields, which callers already refuse.
+   * The refusal records one actionable error per wrapper instance
+   * (attempts repeat the answer silently: same instance, same defect,
+   * already said). The unavailable-backend error is the exception — the
+   * factory records it itself before throwing, and the wrapper swallows
+   * it without a second record for the one event.
    *
    * @return \League\Flysystem\FilesystemOperator|null
    *   The operator, or NULL when this scheme resolves to core-native
-   *   storage.
-   *
-   * @throws \Drupal\flysystem\Exception\FlysystemConfigExceptionInterface
-   *   When the binding for this scheme is invalid; implementations let
-   *   this propagate until the graceful-handling design lands.
+   *   storage or its binding is broken.
    */
   protected function resolveOperator(): ?FilesystemOperator {
     if (!$this->operatorResolved) {
       $scheme = static::getSchemeName();
-      /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
-      $factory = \Drupal::service('flysystem.operator_factory');
-      $this->operator = $factory->operatorFor($scheme);
+      try {
+        /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
+        $factory = \Drupal::service('flysystem.operator_factory');
+        $this->operator = $factory->operatorFor($scheme);
+      }
+      catch (FlysystemPackageMissingException) {
+        // Recorded by the factory itself before it threw; recording it
+        // again here would double-log the one failure.
+      }
+      catch (FlysystemConfigExceptionInterface | FlysystemPluginNotFoundException $e) {
+        $this->logger()->error($e->getMessage(), [
+          'scheme' => $scheme,
+          'link' => NULL,
+          'exception' => $e,
+        ]);
+      }
       $this->operatorResolved = TRUE;
     }
     return $this->operator;
@@ -289,14 +310,16 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    */
   public function stream_open($path, $mode, $options, &$opened_path) {
     // Touching the scheme resolves its binding: a broken configuration
-    // raises its typed error right here, which is what keeps the failure
-    // lazy (build time stays silent) and scheme-local. The operator is
+    // answers as no operator (recorded once, by resolveOperator()), which
+    // is what keeps the failure lazy (build time stays silent) and
+    // scheme-local, without letting a configuration defect become a
+    // request-killing exception at the stream boundary. The operator is
     // remembered on this instance for every call the handle makes after.
     $operator = $this->resolveOperator();
     if ($operator === NULL) {
       // The scheme answers core-native while this wrapper is registered
-      // for it — a state the registration rules rule out. Refuse the open
-      // rather than half-serve it.
+      // for it, or its binding is broken — either way there is no
+      // storage to serve from. Refuse the open rather than half-serve it.
       return FALSE;
     }
 
@@ -310,8 +333,8 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
     // Every question below is a storage-layer call that the guard or the
     // backend may refuse — a hostile or unservable path answers as a
     // failed open, recorded once, never a crash inside PHP's stream
-    // layer. The typed binding contract is untouched: resolution already
-    // happened above and still propagates.
+    // layer. A broken binding never reaches this block: resolution
+    // already refused above.
     $failed = FALSE;
     $exists = $this->guarded(
       fn(): bool => $operator->fileExists($target),
