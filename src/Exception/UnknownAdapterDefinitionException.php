@@ -12,7 +12,7 @@ namespace Drupal\flysystem\Exception;
  * binding under an unused scheme cannot throw when a different scheme is
  * touched. This exception surfaces at resolution, for that scheme only.
  */
-class UnknownAdapterDefinitionException extends \InvalidArgumentException {
+class UnknownAdapterDefinitionException extends \InvalidArgumentException implements FlysystemConfigExceptionInterface {
 
   /**
    * Constructs the exception naming both the reference and its scheme.
