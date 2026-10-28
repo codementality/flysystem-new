@@ -1,0 +1,258 @@
+################
+# DrupalCI GitLabCI template — Flysystem 4.x
+#
+# Carried forward from the 3.0.x branch (stock DrupalCI GitLab template) and
+# extended with the flysystem v4 test-matrix intent (testing.md §6, §8 M0).
+#
+# This template replicates DrupalCI testing for contrib: it includes the
+# centrally-maintained gitlab_templates files, so PHPUnit/PHPCS/PHPStan jobs
+# and supported Drupal/PHP versions are kept up to date by the Drupal
+# Association without changes to this file.
+################
+
+include:
+  - project: $_GITLAB_TEMPLATES_REPO
+    ref: $_GITLAB_TEMPLATES_REF
+    file:
+      - '/includes/include.drupalci.main.yml'
+      - '/includes/include.drupalci.variables.yml'
+      - '/includes/include.drupalci.workflows.yml'
+
+################
+# Test matrix intent (flysystem v4)
+#
+# Current: Drupal 11.4 on PHP 8.4 (module not yet D12-ready — D12 / PHP 8.5
+# comes later, per planning/testing.md §6).
+#
+# DRUPAL_CORE is set via the composer job's variables (the _TARGET_CORE
+# top-level form is deprecated in gitlab_templates 1.5.10).
+################
+composer:
+  variables:
+    DRUPAL_CORE: '^11.4'
+
+variables:
+  _TARGET_PHP: '8.4'
+  OPT_IN_TEST_MAX_PHP: '1'
+
+################
+# phpunit: install the ImageMagick binaries the M3 GD/ImageMagick staging
+# tests shell out to (GdStagingRemoteSchemeTest, ImagemagickStagingRemoteSchemeTest).
+# The stock gitlab_templates phpunit image does not ship `magick`; the imagemagick
+# module installs it in its own CI the same way (imagemagick 5.0.x .gitlab-ci.yml).
+################
+phpunit:
+  extends: .phpunit-base
+  # Floci (#24): the submodule Floci integration legs (FlociIntegrationTest)
+  # prove the aws_s3 driver against a real S3-compatible store and FAIL when
+  # the emulator is absent — so the emulator rides along in this job. The
+  # three inherited services are redeclared literally (GitLab merges `services`
+  # shallowly, and YAML anchors from the included template files are NOT
+  # visible here — the pipeline rejects *with-database with "unknown anchor" —
+  # so overriding the key must restate them) plus floci/floci:latest aliased
+  # floci-aws, mirroring the floci-aws smoke job below. Kernel legs need the
+  # database + the emulator only; chrome is kept for FunctionalJS.
+  services:
+    - name: $_CONFIG_DOCKERHUB_ROOT/$_TARGET_DB_TYPE-$_TARGET_DB_VERSION:$_TARGET_DB_IMAGE_TAG
+      alias: database
+    - name: selenium/standalone-chrome:127.0
+      alias: selenium
+      variables:
+        JAVA_OPTS: '-Dwebdriver.chrome.logfile=/builds/chromedriver.log'
+        SE_NODE_OVERRIDE_MAX_SESSIONS: 'true'
+        SE_NODE_MAX_SESSIONS: '16'
+        SE_SESSION_RETRY_INTERVAL: '1'
+        SE_SESSION_REQUEST_TIMEOUT: '10'
+        SE_START_XVFB: 'true'
+        SE_START_VNC: 'false'
+    - name: $_CONFIG_DOCKERHUB_ROOT/$_TARGET_CHROMEDRIVER:$_TARGET_CHROMEDRIVER_TAG
+      alias: chrome
+      entrypoint:
+        - chromedriver
+        - '--no-sandbox'
+        - '--log-path=/tmp/chromedriver.log'
+        - '--verbose'
+        - '--allowed-ips='
+    - name: floci/floci:latest
+      alias: floci-aws
+      variables:
+        # Match the local addon default (docker-compose.floci-aws.yaml): with
+        # auth enforcement off, every bucket is world-readable and the
+        # public/private split the legs pin is meaningless.
+        FLOCI_SERVICES_S3_ENFORCE_AUTH: "true"
+    # SFTP service (#212): the flysystem_sftpv3 sftp legs (mapping round-trip,
+    # staging, remap, settings.php, config save) run against the same image
+    # the local parity addon uses (atmoz/sftp:alpine, docker-compose.sftp.yaml),
+    # aliased `sftp` — the SAME host name both sides (the DDEV service and the
+    # service container are both reached as `sftp:22`, so no env delta).
+    # SFTP_USERS mirrors the addon defaults: user sftp, pass sftp, uid/gid
+    # 1001, and the `upload` directory entrypoint-created in the chrooted
+    # home (atmoz creates dirs listed in the 5th token; the addon achieves
+    # the same by bind-mounting a host dir there).
+    - name: atmoz/sftp:alpine
+      alias: sftp
+      variables:
+        SFTP_USERS: sftp:sftp:1001:1001:upload
+  variables:
+    # Exactly the four env vars the floci.io quickstart sets (endpoint points
+    # at the aliased service instead of localhost); the tests read
+    # AWS_ENDPOINT_URL with the same default as fallback.
+    AWS_ENDPOINT_URL: http://floci-aws:4566
+    AWS_ACCESS_KEY_ID: test
+    AWS_SECRET_ACCESS_KEY: test
+    AWS_DEFAULT_REGION: us-east-1
+  before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:imagemagick_install[collapsed=true]\r\e[0K\e[0;30;103m *** ImageMagick packages install *** \e[0m"
+    - sudo apt-get update
+    - sudo apt-get install -y --no-install-recommends imagemagick ghostscript openssh-client sshpass
+    - echo -e "\e[0Ksection_end:`date +%s`:imagemagick_install\r\e[0K"
+    - convert -version | head -n1
+    # Floci buckets (#24, #224): the integration legs assert the environment
+    # provides the public/private/noacl buckets — they never create them, so
+    # a leg passing over a broken environment is impossible. The fresh CI
+    # emulator ships no buckets (the DDEV addon init hook only runs locally),
+    # so the job provisions all three plus the public-read policy here, via
+    # the AWS SDK already in vendor: the job image has no AWS CLI (Debian
+    # bookworm ships no awscli package), and the smoke job's CLI cannot reach
+    # this job's emulator (GitLab services are per-job sidecars). Mirrors
+    # floci-aws/init/ready.d/10-default-buckets.sh. The noacl bucket is
+    # existence-only: this image enforces no ACL mechanism (#224 finding), so
+    # no ownership controls or Deny policy is shipped — both would be
+    # decorative.
+    # NOTE: the two lines below deliberately contain no $ character at all
+    # (no PHP variables — clients are constructed inline and discarded), so
+    # GitLab has nothing to expand and the committed code is byte-for-byte
+    # what the shell runs. Do not introduce $ here; do not use ? ternaries
+    # (? plus space reads as a YAML mapping key). Any failure exits nonzero
+    # with its cause named.
+    - timeout 120 php -r 'while (!@file_get_contents("http://floci-aws:4566/_floci/health")) { sleep(2); }'
+    # SFTP service readiness (#212): the tcp probe (no PHP variables — no $
+    # anywhere, same byte-for-byte rule as the lines below) waits for the
+    # aliased atmoz/sftp:alpine container to answer on 22, then a real
+    # openssh-client login (openssh-client + sshpass are installed with the
+    # ImageMagick packages above) proves the credentials the sftp
+    # legs pin actually authenticate. NO phpseclib probe: the sftp SDK
+    # (league/flysystem-sftp-v3, which ships phpseclib via PHPSECLIB) belongs
+    # to the flysystem_sftpv3 submodule package (the require/require-dev split
+    # rule) and is NOT in this job's vendor until the submodule lands (#106).
+    # Non-batch sftp reads the `quit` from piped stdin (batch mode would
+    # disable password auth outright — the first-run lesson); a successful
+    # authenticated quit exits 0. No provisioning here: atmoz's
+    # entrypoint creates the user, the chrooted home, and the `upload`
+    # directory from SFTP_USERS.
+    - timeout 120 php -r 'for (;;) { if (@fsockopen("sftp", 22)) { exit(0); } sleep(2); }'
+    - printf "quit\n" | timeout 60 sshpass -p sftp sftp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null sftp@sftp
+    # Commented out for now, will add back when work begins on S3 adapters.
+    #- php -r 'require "vendor/autoload.php"; (new Aws\S3\S3Client(["version" => "latest", "region" => "us-east-1", "endpoint" => "http://floci-aws:4566", "use_path_style_endpoint" => TRUE]))->createBucket(["Bucket" => "public"]); (new Aws\S3\S3Client(["version" => "latest", "region" => "us-east-1", "endpoint" => "http://floci-aws:4566", "use_path_style_endpoint" => TRUE]))->createBucket(["Bucket" => "private"]); (new Aws\S3\S3Client(["version" => "latest", "region" => "us-east-1", "endpoint" => "http://floci-aws:4566", "use_path_style_endpoint" => TRUE]))->createBucket(["Bucket" => "noacl"]); (new Aws\S3\S3Client(["version" => "latest", "region" => "us-east-1", "endpoint" => "http://floci-aws:4566", "use_path_style_endpoint" => TRUE]))->putBucketPolicy(["Bucket" => "public", "Policy" => "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::public/*\"}]}"]); echo "floci buckets ready\n";'
+
+################
+# floci-aws: spike (#71) — boot the Floci AWS emulator as a CI service and
+# smoke-test it (health + S3 put/get round-trip), so the S3 submodules
+# (M4-M6) can consume the working setup. This is deliberately a SEPARATE job:
+# overriding `services` on the phpunit job would shallow-replace the
+# database/chrome services attached by .testing-job-base, breaking the whole
+# suite.
+#
+# Per the floci.io/aws quickstart (Docker tab): the emulator container is
+# floci/floci:latest; the S3 round-trip is driven with the AWS CLI (aws s3 mb /
+# cp / cat). The native `latest` image does not ship the CLI, so the job runs
+# on floci's own `latest-compat` tag (ships the AWS CLI + boto3 — the DDEV
+# addon's default for the same reason). The endpoint inside the job is
+# http://floci-aws:4566 (GitLab aliases the service container by its `alias`).
+################
+floci-aws:
+  stage: test
+  needs: [composer]
+  image: floci/floci:latest-compat
+  services:
+    - name: floci/floci:latest
+      alias: floci-aws
+  variables:
+    # Exactly the four env vars the quickstart sets (endpoint points at the
+    # aliased service instead of localhost).
+    AWS_ENDPOINT_URL: http://floci-aws:4566
+    AWS_ACCESS_KEY_ID: test
+    AWS_SECRET_ACCESS_KEY: test
+    AWS_DEFAULT_REGION: us-east-1
+  script:
+    # Wait for Floci's health endpoint (the image ships a healthcheck polling
+    # /_floci/health; GitLab starts the job before the service is fully up).
+    - |
+      for i in $(seq 1 30); do
+        if curl -sf http://floci-aws:4566/_floci/health >/dev/null 2>&1; then
+          echo "Floci is up (attempt $i)";
+          break;
+        fi
+        echo "Waiting for Floci (attempt $i)...";
+        sleep 2;
+        if [ "$i" = "30" ]; then
+          echo "Floci did not become healthy in time";
+          exit 1;
+        fi
+      done
+    # S3 round-trip, exactly as the quickstart: create a bucket, put an object,
+    # read it back and print it.
+    #Commented out for now, will add back when work begins on AWS adapters.
+    #- aws s3 mb s3://flysystem-spike
+    #- echo "floci-spike-content" > $CI_PROJECT_DIR/floci-spike.txt
+    #- aws s3 cp $CI_PROJECT_DIR/floci-spike.txt s3://flysystem-spike/hello.txt
+    #- aws s3 cp s3://flysystem-spike/hello.txt $CI_PROJECT_DIR/floci-spike-back.txt
+    #- grep -q "floci-spike-content" $CI_PROJECT_DIR/floci-spike-back.txt
+
+################
+# sftp: the SFTP analog of the floci-aws spike (#212) — boot the SFTP server
+# as a CI service (the SAME image the local parity addon uses,
+# docker-compose.sftp.yaml: atmoz/sftp:alpine with the sftp/sftp user owning
+# an `upload` directory) and smoke-test it (tcp readiness + password login +
+# SFTP put/get round-trip), so the flysystem_sftpv3 legs consume a proven
+# setup. Deliberately a SEPARATE job: overriding `services` on the phpunit
+# job shallow-replaces the attached services, so the phpunit job redeclares
+# them (see its comment) while this job isolates the spike failure aside from
+# the suite.
+#
+# EPHEMERAL SIDE ONLY (L4, M6R #319): this service is a throwaway CI sidecar
+# for tests and smoke jobs — NEVER an operational SFTP endpoint. Its host key
+# is regenerated every run, so nothing can pin its fingerprint; production
+# sftp schemes must configure `host_fingerprint` against their real host
+# (see the README's fingerprint guidance and the status-report warning).
+#
+# The php:8.4-cli job image (the stack the modules test on) installs
+# openssh-client + sshpass for the batch SFTP round-trip: the image ships no
+# sftp client, and the vendor-side phpseclib login probe lives in the
+# phpunit job (capacity where there is an interpreter, client where there is
+# a shell).
+################
+sftp:
+  stage: test
+  needs: [composer]
+  image: php:8.4-cli
+  services:
+    - name: atmoz/sftp:alpine
+      alias: sftp
+      variables:
+        SFTP_USERS: sftp:sftp:1001:1001:upload
+  script:
+    # OpenSSH client + sshpass: the php image ships neither (it is a minimal
+    # Debian bookworm). apt works as root; no awscli-style package problem
+    # here (openssh-client and sshpass are stock bookworm packages).
+    - apt-get update && apt-get install -y --no-install-recommends openssh-client sshpass
+    # Readiness: poll TCP 22 with a bash /dev/tcp probe until the service
+    # answers, then bound the wait at 120s total (the gitlab runner starts
+    # the job before the service is listening).
+    - timeout 120 bash -c 'until (echo > /dev/tcp/sftp/22) 2>/dev/null; do sleep 2; done'
+    - echo "SFTP service is listening"
+    # The SFTP put/get round-trip, driven through a scripted sftp session fed
+    # on stdin (sshpass feeds the sftp user). NO `-b`: batch mode disables
+    # password authentication entirely (the client never prompts, sshpass has
+    # nothing to feed, and the server denies with
+    # `Permission denied (publickey, password, keyboard-interactive)` — found
+    # by the first CI run, reproduced and fixed locally). Non-batch sftp reads
+    # commands from piped stdin normally; strict host-key check off (the
+    # container generates fresh host keys per run — there is no stable
+    # fingerprint contract to pin in an ephemeral CI sidecar; the fingerprint
+    # legs are the DRIVER's host_fingerprint consumption, proven in the
+    # submodule tests, not a service-side guarantee).
+    - printf "sftp-smoke-content" > smoke.txt
+    - printf "put smoke.txt upload/smoke.txt\nget upload/smoke.txt smoke-back.txt\n" | sshpass -p sftp sftp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null sftp@sftp
+    - grep -q "sftp-smoke-content" $CI_PROJECT_DIR/smoke-back.txt
+    - echo "sftp round-trip complete"
