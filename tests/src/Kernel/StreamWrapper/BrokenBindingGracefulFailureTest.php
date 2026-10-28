@@ -19,7 +19,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * the verification surface reports the same finding the log recorded —
  * which is the same content the status report shows. No exception from
  * the binding layer may escape a wrapper method into PHP's stream layer,
- * where it would abort the request.
+ * where it would abort the request. Records are read from the watchdog
+ * table, so the proof exercises the site's real logging pipeline rather
+ * than a stand-in.
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
@@ -28,17 +30,18 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['flysystem'];
+  protected static $modules = ['flysystem', 'dblog'];
 
   /**
-   * The recording channel installed in place of the module's own.
-   *
-   * @var \Drupal\flysystem\Tests\Kernel\StreamWrapper\RecordingLoggerChannel
+   * {@inheritdoc}
    */
-  private RecordingLoggerChannel $spy;
+  protected function setUp(): void {
+    parent::setUp();
+    $this->installSchema('dblog', ['watchdog']);
+  }
 
   /**
-   * Applies a flysystem settings layer, rebuilds, and swaps in the spy.
+   * Applies a flysystem settings layer and rebuilds the container.
    *
    * @param array $bindings
    *   The value for the flysystem settings key.
@@ -47,8 +50,6 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
     $this->setSetting('flysystem', $bindings);
     $kernel = $this->container->get('kernel');
     $this->container = $kernel->rebuildContainer();
-    $this->spy = new RecordingLoggerChannel();
-    $this->container->set('logger.channel.flysystem', $this->spy);
     // PHP instantiates stream wrappers without dependency injection; the
     // global container must be current for wrappers that reach services.
     \Drupal::setContainer($this->container);
@@ -56,17 +57,23 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
   }
 
   /**
-   * Records sent at error severity by the module's channel.
+   * Every record the module's channel sent to the logging pipeline.
    *
-   * @return array<int, array{level: mixed, message: string, context: array}>
-   *   The matching records, in order.
+   * @return array<int, object>
+   *   watchdog rows, oldest first.
    */
-  private function errorRecords(): array {
-    return array_values(array_filter($this->spy->records, static fn(array $r): bool => $r['level'] === 'error'));
+  private function channelRecords(): array {
+    return $this->container->get('database')
+      ->select('watchdog', 'w')
+      ->fields('w')
+      ->condition('w.type', 'flysystem')
+      ->orderBy('w.wid')
+      ->execute()
+      ->fetchAll();
   }
 
   /**
-   * A broken binding fails the open as a refusal with one log record.
+   * A broken binding fails the open as a refusal with one logged record.
    *
    * The proof runs through PHP's own fopen(): the wrapper answers the
    * protocol, so the caller sees the same FALSE it would see from a
@@ -82,10 +89,10 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
     $handle = @fopen('public://x.txt', 'r');
     self::assertFalse($handle, 'A broken binding must fail the open, not crash it.');
 
-    $records = $this->errorRecords();
+    $records = $this->channelRecords();
     self::assertCount(1, $records, 'The refusal leaves exactly one record, not a crash and not silence.');
-    self::assertStringContainsString('nosuchplugin', $records[0]['message'], 'The record names the defect the site builder can act on.');
-    self::assertSame('public', $records[0]['context']['scheme'] ?? NULL);
+    self::assertStringContainsString('nosuchplugin', $records[0]->message, 'The record names the defect the site builder can act on.');
+    self::assertSame(3, (int) $records[0]->severity, 'A binding error is an error, not a warning.');
 
     $written = @file_put_contents('temporary://graceful-check.txt', 'alive');
     self::assertNotFalse($written, 'The request must remain healthy enough for its next file operation.');
@@ -96,7 +103,7 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
    * The log record and the verification finding say the same thing.
    *
    * A site builder reading the status report and an operator reading the
-   * log must see one problem, described once — the surfaces draw on the
+   * log must see one problem, described once — both surfaces quote the
    * same message the binding layer raised.
    */
   public function testVerificationAndLogCarryTheSameFinding(): void {
@@ -105,14 +112,17 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
     ]);
 
     @fopen('public://x.txt', 'r');
-    $records = $this->errorRecords();
-    self::assertCount(1, $records);
 
     $verifier = $this->container->get('flysystem.binding_verifier');
     $findings = $verifier->verifyBinding('public');
     self::assertCount(1, $findings, 'The same configuration answers with exactly one finding.');
     self::assertSame('error', $findings[0]['severity']);
-    self::assertSame($records[0]['message'], $findings[0]['message'], 'Log and verification must quote the one raised error verbatim.');
+
+    $messages = array_column($this->channelRecords(), 'message');
+    self::assertNotEmpty($messages, 'Both the failed operation and the verification reach the log.');
+    foreach ($messages as $message) {
+      self::assertSame($findings[0]['message'], $message, 'Log and verification must quote the one raised error verbatim.');
+    }
   }
 
   /**
@@ -128,19 +138,9 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
     ]);
 
     self::assertFalse(@fopen('public://x.txt', 'r'), 'The broken scheme refuses.');
-    self::assertSame('core-native', @file_get_contents($this->writeNativeTempFile()), 'Neighboring schemes still serve normally.');
-  }
-
-  /**
-   * Writes a small file through the unbound temporary scheme.
-   *
-   * @return string
-   *   The URI to read back.
-   */
-  private function writeNativeTempFile(): string {
     $uri = 'temporary://scheme-local-check.txt';
-    file_put_contents($uri, 'core-native');
-    return $uri;
+    self::assertNotFalse(@file_put_contents($uri, 'core-native'), 'Neighboring schemes still serve normally.');
+    self::assertSame('core-native', @file_get_contents($uri));
   }
 
 }
