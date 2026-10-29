@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
@@ -25,6 +30,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class GuardRefusalSoftFailureTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
@@ -43,46 +51,25 @@ final class GuardRefusalSoftFailureTest extends KernelTestBase {
   protected function setUp(): void {
     parent::setUp();
     $this->root = \Drupal::root() . '/sites/default/files/m2-03-soft-' . getmypid();
-    mkdir($this->root, 0777, TRUE);
+    $this->createScratchRoot($this->root);
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    $this->rrmdir($this->root);
+    $this->removeScratchRoot($this->root);
     parent::tearDown();
-  }
-
-  /**
-   * Best-effort recursive cleanup.
-   */
-  private function rrmdir(string $dir): void {
-    if (!is_dir($dir)) {
-      return;
-    }
-    foreach (scandir($dir) ?: [] as $entry) {
-      if ($entry === '.' || $entry === '..') {
-        continue;
-      }
-      $path = $dir . '/' . $entry;
-      is_dir($path) ? $this->rrmdir($path) : @unlink($path);
-    }
-    @rmdir($dir);
   }
 
   /**
    * Binds public:// to the scratch root.
    */
   protected function bind(): void {
-    $this->setSetting('flysystem', [
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => $this->root]],
     ]);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    \Drupal::setContainer($this->container);
     $manager = $this->container->get('stream_wrapper_manager');
-    $manager->register();
     self::assertSame(FlysystemPublicStream::class, $manager->getClass('public'));
   }
 

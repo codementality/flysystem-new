@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\TemporaryStream;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\StreamWrapper\FlysystemPrivateStream;
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
 use Drupal\flysystem\StreamWrapper\FlysystemTemporaryStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
@@ -37,6 +42,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class MixedBindingCoexistenceTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
@@ -54,27 +62,10 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
    */
   protected function tearDown(): void {
     foreach ($this->roots as $root) {
-      $this->rrmdir(DRUPAL_ROOT . '/' . $root);
+      $this->removeScratchRoot(DRUPAL_ROOT . '/' . $root);
     }
     $this->roots = [];
     parent::tearDown();
-  }
-
-  /**
-   * Best-effort recursive cleanup of a scratch folder.
-   */
-  private function rrmdir(string $dir): void {
-    if (!is_dir($dir)) {
-      return;
-    }
-    foreach (scandir($dir) ?: [] as $entry) {
-      if ($entry === '.' || $entry === '..') {
-        continue;
-      }
-      $path = $dir . '/' . $entry;
-      is_dir($path) ? $this->rrmdir($path) : @unlink($path);
-    }
-    @rmdir($dir);
   }
 
   /**
@@ -88,25 +79,9 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
    */
   private function scratchRoot(string $label): string {
     $root = 'tmp-flysystem-m2-07-' . $label . '-' . bin2hex(random_bytes(3));
-    mkdir(DRUPAL_ROOT . '/' . $root, 0777, TRUE);
+    $this->createScratchRoot(DRUPAL_ROOT . '/' . $root);
     $this->roots[$label] = $root;
     return $root;
-  }
-
-  /**
-   * Applies a flysystem settings layer and rebuilds the container.
-   *
-   * @param array $bindings
-   *   The value for the flysystem settings key.
-   */
-  private function rebuildWithBindings(array $bindings): void {
-    $this->setSetting('flysystem', $bindings);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    // PHP instantiates stream wrappers without dependency injection; the
-    // global container must be current for wrappers that reach services.
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
   }
 
   /**
@@ -134,7 +109,7 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
     foreach ($bound as $scheme) {
       $bindings[$scheme] = $this->bind($scheme);
     }
-    $this->rebuildWithBindings($bindings);
+    $this->rebuildWithFlysystemBindings($bindings);
     $manager = $this->container->get('stream_wrapper_manager');
 
     $expected = [
@@ -185,7 +160,7 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
    */
   public function testStorageLocationsStaySeparatedPerScheme(): void {
     $publicRoot = $this->bind('public');
-    $this->rebuildWithBindings(['public' => $publicRoot]);
+    $this->rebuildWithFlysystemBindings(['public' => $publicRoot]);
 
     self::assertNotFalse(file_put_contents('public://kept.txt', 'bound-bytes'));
     self::assertNotFalse(file_put_contents('temporary://drift.txt', 'native-bytes'));
@@ -210,12 +185,12 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
    */
   public function testRebindingRelocatesMeaningNotData(): void {
     $rootA = $this->bind('root-a');
-    $this->rebuildWithBindings(['public' => $rootA]);
+    $this->rebuildWithFlysystemBindings(['public' => $rootA]);
     self::assertNotFalse(file_put_contents('public://shared.txt', 'under-a'));
     self::assertTrue(file_exists('public://shared.txt'));
 
     $rootB = $this->bind('root-b');
-    $this->rebuildWithBindings(['public' => $rootB]);
+    $this->rebuildWithFlysystemBindings(['public' => $rootB]);
     self::assertFalse(file_exists('public://shared.txt'), 'The previous binding must become invisible after rebinding, never reachable cross-root.');
 
     $fileA = DRUPAL_ROOT . '/' . $rootA['config']['root'] . '/shared.txt';
@@ -225,7 +200,7 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
     self::assertNotFalse(file_put_contents('public://fresh.txt', 'under-b'));
     self::assertFileExists(DRUPAL_ROOT . '/' . $rootB['config']['root'] . '/fresh.txt', 'New writes follow the new meaning.');
 
-    $this->rebuildWithBindings([]);
+    $this->rebuildWithFlysystemBindings([]);
     self::assertFalse(file_exists('public://shared.txt'), 'Neither former root leaks through the core-native default.');
     self::assertFalse(file_exists('public://fresh.txt'));
   }
@@ -241,15 +216,15 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
   public function testPublicUrlIsIndependentOfTheBoundRoot(): void {
     $uri = 'public://images/pic.png';
 
-    $this->rebuildWithBindings([]);
+    $this->rebuildWithFlysystemBindings([]);
     $native = $this->container->get('file_url_generator')->generateString($uri);
     self::assertNotEmpty($native);
 
-    $this->rebuildWithBindings(['public' => $this->bind('url-a')]);
+    $this->rebuildWithFlysystemBindings(['public' => $this->bind('url-a')]);
     $boundA = $this->container->get('file_url_generator')->generateString($uri);
     self::assertSame($native, $boundA, 'Binding public may not move the URL.');
 
-    $this->rebuildWithBindings(['public' => $this->bind('url-b')]);
+    $this->rebuildWithFlysystemBindings(['public' => $this->bind('url-b')]);
     self::assertSame($native, $this->container->get('file_url_generator')->generateString($uri), 'Rebinding may not move the URL either.');
   }
 
@@ -265,7 +240,7 @@ final class MixedBindingCoexistenceTest extends KernelTestBase {
    */
   public function testTheWrapperObeysTheResolverAndNothingElse(): void {
     $root = $this->bind('obey');
-    $this->rebuildWithBindings(['public' => $root]);
+    $this->rebuildWithFlysystemBindings(['public' => $root]);
     $standIn = $this->createMock(OperatorFactory::class);
     $standIn->method('operatorFor')->with('public')->willReturn(NULL);
     $this->container->set('flysystem.operator_factory', $standIn);

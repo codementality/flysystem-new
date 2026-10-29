@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\flysystem\StreamWrapper\FlysystemPrivateStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use League\Flysystem\FilesystemOperator;
 use PHPUnit\Framework\Attributes\Group;
@@ -28,6 +33,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class WrapperMetadataEndToEndTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
@@ -46,45 +54,24 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   protected function setUp(): void {
     parent::setUp();
     $this->root = sys_get_temp_dir() . '/flysystem-m2-03-' . getmypid() . '-private';
-    mkdir($this->root, 0777, TRUE);
+    $this->createScratchRoot($this->root);
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    $this->rrmdir($this->root);
+    $this->removeScratchRoot($this->root);
     parent::tearDown();
-  }
-
-  /**
-   * Best-effort recursive cleanup of the scratch folder.
-   */
-  private function rrmdir(string $dir): void {
-    if (!is_dir($dir)) {
-      return;
-    }
-    foreach (scandir($dir) ?: [] as $entry) {
-      if ($entry === '.' || $entry === '..') {
-        continue;
-      }
-      $path = $dir . '/' . $entry;
-      is_dir($path) ? $this->rrmdir($path) : @unlink($path);
-    }
-    @rmdir($dir);
   }
 
   /**
    * Binds private:// to the scratch root and proves dispatch arrives.
    */
   protected function bindPrivate(): FilesystemOperator {
-    $this->setSetting('flysystem', [
+    $this->rebuildWithFlysystemBindings([
       'private' => ['driver' => 'local', 'config' => ['root' => $this->root]],
     ]);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
     self::assertSame(FlysystemPrivateStream::class, $this->container->get('stream_wrapper_manager')->getClass('private'));
     /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
     $factory = $this->container->get('flysystem.operator_factory');

@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Functional;
 
+require_once __DIR__ . '/../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../FlysystemFunctionalTestTrait.php';
+
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemFunctionalTestTrait;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\image\Entity\ImageStyle;
 use PHPUnit\Framework\Attributes\Group;
@@ -27,6 +32,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
 class ManagedFileUploadTest extends BrowserTestBase {
+
+  use FlysystemFunctionalTestTrait;
+  use FlysystemBootTestTrait;
 
   /**
    * {@inheritdoc}
@@ -60,9 +68,7 @@ class ManagedFileUploadTest extends BrowserTestBase {
     $this->publicRoot = 'flysystem-m2-06-' . $token;
     $this->tempRoot = 'flysystem-m2-06-' . $token . '-temp';
     foreach ([$this->publicRoot, $this->tempRoot] as $dir) {
-      if (!is_dir(DRUPAL_ROOT . '/' . $dir)) {
-        mkdir(DRUPAL_ROOT . '/' . $dir, 0777, TRUE);
-      }
+      $this->createScratchRoot(DRUPAL_ROOT . '/' . $dir);
     }
     parent::setUp();
     $this->applyBindings([
@@ -90,38 +96,18 @@ class ManagedFileUploadTest extends BrowserTestBase {
         ],
       ],
     ]);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
+    $this->rebootWithFlysystemSettings();
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    $root = DRUPAL_ROOT;
+    $public = DRUPAL_ROOT . '/' . $this->publicRoot;
+    $temp = DRUPAL_ROOT . '/' . $this->tempRoot;
     parent::tearDown();
-    foreach ([$this->publicRoot, $this->tempRoot] as $dir) {
-      $this->rrmdir($root . '/' . $dir);
-    }
-  }
-
-  /**
-   * Best-effort recursive folder removal for the bound roots.
-   */
-  private function rrmdir(string $dir): void {
-    if (!is_dir($dir)) {
-      return;
-    }
-    foreach (scandir($dir) ?: [] as $entry) {
-      if ($entry === '.' || $entry === '..') {
-        continue;
-      }
-      $path = $dir . '/' . $entry;
-      is_dir($path) ? $this->rrmdir($path) : @unlink($path);
-    }
-    @rmdir($dir);
+    $this->removeScratchRoot($public);
+    $this->removeScratchRoot($temp);
   }
 
   /**

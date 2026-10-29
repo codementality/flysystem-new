@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\ManagedFile;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\Core\File\FileExists;
 use Drupal\file\Entity\File;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -25,6 +30,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
 final class ManagedFileMechanicsTest extends KernelTestBase {
+
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
 
   /**
    * {@inheritdoc}
@@ -58,9 +66,7 @@ final class ManagedFileMechanicsTest extends KernelTestBase {
     $this->installSchema('file', ['file_usage']);
     $this->publicRoot = 'tmp-flysystem-m2-06-' . getmypid() . '-public';
     $this->publicReal = $this->container->getParameter('app.root') . '/' . $this->publicRoot;
-    if (!is_dir($this->publicReal)) {
-      mkdir($this->publicReal, 0777, TRUE);
-    }
+    $this->createScratchRoot($this->publicReal);
     $this->bindPublic();
   }
 
@@ -68,7 +74,7 @@ final class ManagedFileMechanicsTest extends KernelTestBase {
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    $this->rrmdir($this->publicReal);
+    $this->removeScratchRoot($this->publicReal);
     parent::tearDown();
   }
 
@@ -76,39 +82,9 @@ final class ManagedFileMechanicsTest extends KernelTestBase {
    * Points the public scheme at the scratch folder and registers.
    */
   private function bindPublic(): void {
-    $this->setSetting('flysystem', [
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => $this->publicRoot]],
     ]);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    // PHP instantiates stream wrappers without dependency injection; the
-    // global container must be current for wrappers that reach services.
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
-  }
-
-  /**
-   * Best-effort recursive cleanup of the scratch folder.
-   */
-  private function rrmdir(string $dir): void {
-    if (!is_dir($dir)) {
-      return;
-    }
-    @chmod($dir, 0755);
-    foreach (scandir($dir) ?: [] as $entry) {
-      if ($entry === '.' || $entry === '..') {
-        continue;
-      }
-      $path = $dir . '/' . $entry;
-      if (is_dir($path)) {
-        $this->rrmdir($path);
-      }
-      else {
-        @chmod($path, 0644);
-        @unlink($path);
-      }
-    }
-    @rmdir($dir);
   }
 
   /**

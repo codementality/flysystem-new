@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -27,6 +32,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class BrokenBindingGracefulFailureTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
@@ -38,22 +46,6 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
   protected function setUp(): void {
     parent::setUp();
     $this->installSchema('dblog', ['watchdog']);
-  }
-
-  /**
-   * Applies a flysystem settings layer and rebuilds the container.
-   *
-   * @param array $bindings
-   *   The value for the flysystem settings key.
-   */
-  private function rebuildWithBindings(array $bindings): void {
-    $this->setSetting('flysystem', $bindings);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    // PHP instantiates stream wrappers without dependency injection; the
-    // global container must be current for wrappers that reach services.
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
   }
 
   /**
@@ -81,7 +73,7 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
    * more work afterwards.
    */
   public function testBrokenBindingFailsOpenWithLoggedRefusal(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'nosuchplugin'],
     ]);
     self::assertSame(FlysystemPublicStream::class, $this->container->get('stream_wrapper_manager')->getClass('public'));
@@ -107,7 +99,7 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
    * same message the binding layer raised.
    */
   public function testVerificationAndLogCarryTheSameFinding(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'nosuchplugin'],
     ]);
 
@@ -133,7 +125,7 @@ final class BrokenBindingGracefulFailureTest extends KernelTestBase {
    * path that was not misconfigured.
    */
   public function testBrokenSchemeLeavesOtherSchemesServing(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'nosuchplugin'],
     ]);
 

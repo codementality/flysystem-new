@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
@@ -17,6 +20,8 @@ use Drupal\Core\StreamWrapper\TemporaryStream;
 use Drupal\flysystem\StreamWrapper\FlysystemPrivateStream;
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
 use Drupal\flysystem\StreamWrapper\FlysystemTemporaryStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use League\Flysystem\UrlGeneration\PublicUrlGenerator;
 use League\Flysystem\UrlGeneration\TemporaryUrlGenerator;
@@ -41,26 +46,13 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
   protected static $modules = ['flysystem'];
-
-  /**
-   * Applies a flysystem settings layer and rebuilds the container.
-   *
-   * @param array $bindings
-   *   The value for the flysystem settings key.
-   */
-  private function rebuildWithBindings(array $bindings): void {
-    $this->setSetting('flysystem', $bindings);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    // PHP instantiates stream wrappers without dependency injection; the
-    // global container must be current for wrappers that reach services.
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
-  }
 
   /**
    * A bound public file presents core's name, description, and URL.
@@ -71,7 +63,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
    * webserver serves the file at do not change when the scheme binds.
    */
   public function testBoundPublicPresentsCoreNamingAndUrl(): void {
-    $this->rebuildWithBindings([]);
+    $this->rebuildWithFlysystemBindings([]);
     $native = new PublicStream();
     $native->setUri('public://some/deep/file.jpg');
     $native_name = (string) $native->getName();
@@ -79,7 +71,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
     $native_url = $native->getExternalUrl();
     self::assertNotEmpty($native_url, 'The native public wrapper must answer a URL for the comparison to mean anything.');
 
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05']],
     ]);
     $bound = $this->container->get('stream_wrapper_manager')->getViaUri('public://some/deep/file.jpg');
@@ -99,7 +91,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
    * still this module's once bound.
    */
   public function testWriteVisibleEnumerationReadsBoundSchemes(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05-public']],
       'private' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05-private']],
       'temporary' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05-temp']],
@@ -132,14 +124,14 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
       'public://styles/large/public/photo.jpg',
     ];
 
-    $this->rebuildWithBindings([]);
+    $this->rebuildWithFlysystemBindings([]);
     $generator = $this->container->get('file_url_generator');
     $native = [];
     foreach ($uris as $uri) {
       $native[] = [$generator->generateString($uri), $generator->generateAbsoluteString($uri)];
     }
 
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05']],
     ]);
     $generator = $this->container->get('file_url_generator');
@@ -157,7 +149,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
    * operator's guard and the consumers' normalizer, proven elsewhere).
    */
   public function testSetUriGetUriRoundTrip(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05']],
     ]);
     $wrapper = new FlysystemPublicStream();
@@ -175,7 +167,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
    * any call, the wrapper and the generator still answer normally.
    */
   public function testUrlGenerationNeverConsultsStorage(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05']],
     ]);
     $untouchable = $this->createMock(OperatorFactory::class);
@@ -216,7 +208,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
    * comparison exercises the real URL generation machinery.
    */
   public function testPrivateAndTemporaryKeepRoutedUrlBehavior(): void {
-    $this->rebuildWithBindings([]);
+    $this->rebuildWithFlysystemBindings([]);
     $this->installSystemRoutes();
     $native_private = new PrivateStream();
     $native_private->setUri('private://secret.txt');
@@ -227,7 +219,7 @@ final class WrapperUrlAndUiSurfaceTest extends KernelTestBase {
     $native_private_url = $native_private->getExternalUrl();
     $native_temporary_url = $native_temporary->getExternalUrl();
 
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'private' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05-private']],
       'temporary' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-m2-05-temp']],
     ]);

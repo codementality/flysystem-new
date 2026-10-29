@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\Drush;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Consolidation\AnnotatedCommand\CommandFileDiscovery;
 use Consolidation\AnnotatedCommand\CommandResult;
 use Drupal\flysystem\Drush\Commands\FlysystemVerifyCommand;
 use Drupal\flysystem\Verification\BindingVerifier;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -27,20 +32,13 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class VerifyCommandServicesTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
   protected static $modules = ['flysystem'];
-
-  /**
-   * Applies a flysystem settings layer and rebuilds the container.
-   */
-  protected function rebuildWithBindings(array $bindings): void {
-    $this->setSetting('flysystem', $bindings);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    \Drupal::setContainer($this->container);
-  }
 
   /**
    * Builds the command over the container's verifier service.
@@ -55,7 +53,7 @@ final class VerifyCommandServicesTest extends KernelTestBase {
    * A sound binding yields a sound row naming the scheme.
    */
   public function testSoundBindingRendersSoundRow(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'sites/default/files']],
     ]);
 
@@ -72,7 +70,7 @@ final class VerifyCommandServicesTest extends KernelTestBase {
    * A broken binding yields a finding row instead of an exception.
    */
   public function testBrokenBindingBecomesFindingRow(): void {
-    $this->rebuildWithBindings(['public' => ['driver' => 'nosuchplugin']]);
+    $this->rebuildWithFlysystemBindings(['public' => ['driver' => 'nosuchplugin']]);
 
     $result = $this->command()->verify(NULL, ['format' => 'table', 'strict' => FALSE]);
     self::assertSame(0, $result->getExitCode(), 'Reporting the problem is not itself a failure.');
@@ -90,7 +88,7 @@ final class VerifyCommandServicesTest extends KernelTestBase {
    * problem on the entry must appear in the command's output.
    */
   public function testCommandOutputEqualsStatusReport(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'nosuchplugin'],
       'temporary' => ['driver' => 'local', 'config' => ['root' => 'sites/default/files']],
     ]);
