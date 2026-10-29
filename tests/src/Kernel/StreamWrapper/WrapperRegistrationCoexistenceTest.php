@@ -111,8 +111,9 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
    * Request-time registration arrives with administrable bindings; the
    * seam must already accept a re-registration of a build-time scheme.
    * The verified mechanism: registerWrapper() re-registers with PHP and
-   * refreshes the enumeration filter caches; the compile-time class map
-   * read by getClass() is deliberately outside its reach, which is why
+   * refreshes the enumeration filter caches; the class map frozen at the
+   * container build, read by getClass(), is deliberately outside its reach,
+   * which is why
    * administrable bindings land in the filters that drive the request.
    */
   public function testLateReRegistrationReplacesBuildTimeWrapper(): void {

@@ -110,8 +110,8 @@ final class TraversalMatrixTest extends KernelTestBase {
 
     $this->bindAndOperator();
     // The bound answer lives on the rebuilt container's manager; the
-    // class map is per-instance, exactly as the compile-time pass builds
-    // it.
+    // class map is per-instance, exactly as the container-build compiler
+    // pass builds it.
     $manager = $this->container->get('stream_wrapper_manager');
 
     self::assertSame(FlysystemPublicStream::class, $manager->getClass('public'));
