@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
 use Drupal\flysystem\StreamWrapper\FlysystemPrivateStream;
-use Drupal\flysystem\Tests\FlysystemBootTestTrait;
-use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
+use Drupal\Tests\flysystem\FlysystemBootTestTrait;
+use Drupal\Tests\flysystem\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;

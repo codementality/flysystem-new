@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Functional;
 
-use Drupal\flysystem\Tests\FlysystemBootTestTrait;
-use Drupal\flysystem\Tests\FlysystemFunctionalTestTrait;
+use Drupal\Tests\flysystem\FlysystemBootTestTrait;
+use Drupal\Tests\flysystem\FlysystemFunctionalTestTrait;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\image\Entity\ImageStyle;
 use PHPUnit\Framework\Attributes\Group;
