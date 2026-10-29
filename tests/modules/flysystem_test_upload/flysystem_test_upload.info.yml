@@ -3,5 +3,6 @@ type: module
 description: 'Test-only form route that stages an upload through temporary:// and places it through public://.'
 core_version_requirement: '^11'
 package: 'Testing'
+hidden: true
 dependencies:
   - drupal:file
