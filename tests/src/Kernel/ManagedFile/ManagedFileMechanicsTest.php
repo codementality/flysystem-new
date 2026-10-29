@@ -6,8 +6,8 @@ namespace Drupal\flysystem\Tests\Kernel\ManagedFile;
 
 use Drupal\Core\File\FileExists;
 use Drupal\file\Entity\File;
-use Drupal\Tests\flysystem\FlysystemBootTestTrait;
-use Drupal\Tests\flysystem\FlysystemKernelTestTrait;
+use Drupal\Tests\flysystem\Traits\FlysystemBootTestTrait;
+use Drupal\Tests\flysystem\Traits\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;

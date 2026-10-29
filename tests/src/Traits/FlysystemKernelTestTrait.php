@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\flysystem;
+namespace Drupal\Tests\flysystem\Traits;
 
 /**
  * Container-reboot mechanics for kernel tests that change flysystem settings.

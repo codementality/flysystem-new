@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\flysystem;
+namespace Drupal\Tests\flysystem\Traits;
 
 /**
  * Reboot mechanics for browser tests that rewrite settings.php bindings.

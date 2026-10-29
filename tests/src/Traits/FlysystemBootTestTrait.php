@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\flysystem;
+namespace Drupal\Tests\flysystem\Traits;
 
 /**
  * Shared scratch-root mechanics for tests that bind schemes to real folders.
