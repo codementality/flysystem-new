@@ -541,7 +541,42 @@ final class WrapperMetadataOperationsTest extends TestCase {
       'owner' => [STREAM_META_OWNER],
       'group name' => [STREAM_META_GROUP_NAME],
       'group' => [STREAM_META_GROUP],
-      'access (chmod)' => [STREAM_META_ACCESS],
+
+    ];
+  }
+
+  /**
+   * Chmod answers through the abstraction's only permission model.
+   *
+   * Core's image pipeline treats a successful chmod as part of every
+   * managed save, so the mode family cannot be refused outright — it is
+   * mapped to the visibility the binding actually expresses: any mode
+   * that grants read access beyond the owner means public, owner-only
+   * means private. The operator's own setVisibility call is the answer;
+   * file bytes are never touched.
+   */
+  #[DataProvider('chmodVisibilityModes')]
+  public function testChmodMapsToVisibility(int $mode, string $expectedVisibility): void {
+    $operator = $this->recordingOperator();
+    $operator->expects(self::once())->method('setVisibility')->with('t.txt', $expectedVisibility);
+    $wrapper = $this->wrapperWith($operator);
+    self::assertTrue($wrapper->stream_metadata('public://t.txt', STREAM_META_ACCESS, $mode), 'A mode the binding can express answers as a real permission change.');
+    self::assertNotContains('read', $this->calls, 'The chmod answer never rewrites content.');
+  }
+
+  /**
+   * Representative modes and the visibility each maps to.
+   *
+   * @return array<string, array{0: int, 1: string}>
+   *   Mode-to-visibility pairs.
+   */
+  public static function chmodVisibilityModes(): array {
+    return [
+      'default file mode' => [0664, 'public'],
+      'world readable' => [0644, 'public'],
+      'executable public' => [0755, 'public'],
+      'owner only' => [0600, 'private'],
+      'owner read-write' => [0700, 'private'],
     ];
   }
 

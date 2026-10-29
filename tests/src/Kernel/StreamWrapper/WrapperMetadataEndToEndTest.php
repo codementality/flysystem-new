@@ -277,28 +277,35 @@ final class WrapperMetadataEndToEndTest extends KernelTestBase {
   }
 
   /**
-   * Mode and ownership changes refuse through PHP's own functions.
+   * Mode changes apply through the binding's permission model.
    *
-   * Nothing is half-applied: chmod() and chown() reach the wrapper as
-   * metadata options the storage abstraction cannot answer; the caller
-   * must see them fail, the real file must keep its bits and bytes
-   * exactly as the write left them, and the scheme must stay fully
-   * serviceable afterwards.
+   * Ownership changes still refuse.
+   *
+   * Core's managed-image pipeline chmods every derivative it writes, so
+   * a mode a binding can express must answer for real, through the
+   * operator's own visibility call — never through a rewrite of the
+   * file's bytes. Owner-only modes answer as private, anything readable
+   * beyond the owner as public. Ownership has no representation in the
+   * abstraction and keeps refusing as a failed operation.
    */
-  public function testChmodAndChownRefuseWithoutHalfApplying(): void {
+  public function testChmodAppliesVisibilityAndChownStillRefuses(): void {
     $operator = $this->bindPrivate();
     $operator->write('guarded-modes.txt', 'payload');
 
     $realPath = $this->root . '/guarded-modes.txt';
     self::assertFileExists($realPath);
-    $mode_before = fileperms($realPath);
 
-    self::assertFalse(@chmod('private://guarded-modes.txt', 0700), 'A mode change has no operator answer; PHP must see it fail.');
-    self::assertFalse(@chown('private://guarded-modes.txt', 0), 'Ownership has no operator answer either.');
-
+    self::assertTrue(@chmod('private://guarded-modes.txt', 0600), 'Owner-only mode answers through visibility.');
     clearstatcache(TRUE, $realPath);
-    self::assertSame($mode_before, fileperms($realPath), 'The refusal leaves the real bits untouched.');
-    self::assertSame('payload', file_get_contents('private://guarded-modes.txt'), 'The file stays fully serviceable after the refusals.');
+    self::assertSame(0, fileperms($realPath) & 0044, 'The group/world read bits really moved away.');
+    self::assertSame('payload', file_get_contents('private://guarded-modes.txt'), 'Visibility changed; bytes never moved.');
+
+    self::assertTrue(@chmod('private://guarded-modes.txt', 0664), 'World-readable mode answers through visibility.');
+    clearstatcache(TRUE, $realPath);
+    self::assertNotSame(0, fileperms($realPath) & 0044, 'The read bits returned through the same real call.');
+
+    self::assertFalse(@chown('private://guarded-modes.txt', 0), 'Ownership has no answer in the abstraction; PHP must see it fail.');
+    self::assertSame('payload', file_get_contents('private://guarded-modes.txt'), 'The refused chown left everything untouched.');
   }
 
 }

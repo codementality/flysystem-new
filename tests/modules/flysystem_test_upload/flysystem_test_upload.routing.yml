@@ -1,0 +1,8 @@
+flysystem_test_upload.form:
+  path: '/flysystem-test-upload'
+  defaults:
+    _form: '\Drupal\flysystem_test_upload\Form\FileUploadForm'
+    _title: 'Flysystem test upload'
+  requirements:
+    # Test-only form; no access requirement, this route exists for tests.
+    _access: 'TRUE'
