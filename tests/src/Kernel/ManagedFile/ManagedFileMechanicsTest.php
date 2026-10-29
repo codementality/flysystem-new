@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Kernel\ManagedFile;
+namespace Drupal\Tests\flysystem\Kernel\ManagedFile;
 
 use Drupal\Core\File\FileExists;
 use Drupal\file\Entity\File;

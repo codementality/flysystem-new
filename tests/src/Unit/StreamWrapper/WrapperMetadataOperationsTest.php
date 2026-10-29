@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Unit\StreamWrapper;
+namespace Drupal\Tests\flysystem\Unit\StreamWrapper;
 
 use League\Flysystem\DirectoryListing;
 use League\Flysystem\DirectoryAttributes;

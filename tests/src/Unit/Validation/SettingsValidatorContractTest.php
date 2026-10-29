@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Unit\Validation;
+namespace Drupal\Tests\flysystem\Unit\Validation;
 
 use Drupal\flysystem\Exception\InvalidAdapterIdException;
 use Drupal\flysystem\Exception\InvalidSchemeNameException;

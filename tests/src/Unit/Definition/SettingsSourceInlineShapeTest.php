@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Unit\Definition;
+namespace Drupal\Tests\flysystem\Unit\Definition;
 
 use Drupal\Core\Site\Settings;
 use Drupal\flysystem\Definition\SettingsSource;
