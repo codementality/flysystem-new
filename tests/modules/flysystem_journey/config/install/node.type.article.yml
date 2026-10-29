@@ -4,7 +4,7 @@ dependencies:
   module:
     - node
 type: article
-label: Article
+name: Article
 description: 'Open article: exercised by the bound public-scheme journey.'
 help: ''
 new_revision: false
