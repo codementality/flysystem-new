@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\flysystem\StreamWrapper\FlysystemPrivateStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -27,6 +32,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class WrapperHandleEndToEndTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
@@ -45,7 +53,7 @@ final class WrapperHandleEndToEndTest extends KernelTestBase {
   protected function setUp(): void {
     parent::setUp();
     $this->root = sys_get_temp_dir() . '/flysystem-m2-02-' . getmypid() . '-private';
-    mkdir($this->root, 0777, TRUE);
+    $this->createScratchRoot($this->root);
   }
 
   /**
@@ -63,13 +71,9 @@ final class WrapperHandleEndToEndTest extends KernelTestBase {
    * Binds private:// to the test root, making PHP dispatch through us.
    */
   protected function bindPrivate(): void {
-    $this->setSetting('flysystem', [
+    $this->rebuildWithFlysystemBindings([
       'private' => ['driver' => 'local', 'config' => ['root' => $this->root]],
     ]);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
     self::assertSame(FlysystemPrivateStream::class, $this->container->get('stream_wrapper_manager')->getClass('private'), 'Proof of the seam: PHP now dispatches private:// through this module.');
   }
 

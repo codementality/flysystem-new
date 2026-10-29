@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StreamWrapper\TemporaryStream;
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
 use Drupal\flysystem\StreamWrapper\FlysystemTemporaryStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -30,31 +35,13 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
   protected static $modules = ['flysystem'];
-
-  /**
-   * Applies a flysystem settings layer and rebuilds the container.
-   *
-   * The rebuild re-runs service providers, so wrapper definitions for
-   * bound schemes are re-pointed at build time exactly as they would be
-   * on a real site; the explicit wrapper registration mirrors the request
-   * step that registers wrappers from the final class map.
-   *
-   * @param array $bindings
-   *   The value for the flysystem settings key.
-   */
-  protected function rebuildWithBindings(array $bindings): void {
-    $this->setSetting('flysystem', $bindings);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    // PHP instantiates stream wrappers without dependency injection; the
-    // global container must be current for wrappers that reach services.
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
-  }
 
   /**
    * With no bindings at all, every scheme stays on core's own classes.
@@ -77,7 +64,7 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
    * A bound scheme's class map entry is this module's wrapper class.
    */
   public function testBoundSchemeIsServedByTheFlysystemWrapper(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-kernel-public']],
     ]);
     $manager = $this->container->get('stream_wrapper_manager');
@@ -92,7 +79,7 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
    * A binding may introduce the private wrapper where core defined none.
    */
   public function testPrivateSchemeBoundWithoutCorePrivatePath(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'private' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-kernel-private']],
     ]);
     $manager = $this->container->get('stream_wrapper_manager');
@@ -105,7 +92,7 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
    * Type bits a bound scheme reports match core's scheme exactly.
    */
   public function testTypeConstantsSurviveTheSwap(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-kernel-public']],
       'temporary' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-kernel-temporary']],
     ]);
@@ -132,7 +119,7 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
    * administrable bindings land in the filters that drive the request.
    */
   public function testLateReRegistrationReplacesBuildTimeWrapper(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-kernel-public']],
     ]);
     $manager = $this->container->get('stream_wrapper_manager');
@@ -155,7 +142,7 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
    * crash escaping into the stream layer.
    */
   public function testBrokenBindingBuildsSilentlyAndRefusesOnTouch(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'nosuchplugin'],
     ]);
     $manager = $this->container->get('stream_wrapper_manager');
@@ -169,12 +156,12 @@ final class WrapperRegistrationCoexistenceTest extends KernelTestBase {
    * Reverting the settings layer returns the scheme to core-native.
    */
   public function testUnbindingRestoresCoreClasses(): void {
-    $this->rebuildWithBindings([
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => 'tmp-flysystem-kernel-public']],
     ]);
     self::assertSame(FlysystemPublicStream::class, $this->container->get('stream_wrapper_manager')->getClass('public'));
 
-    $this->rebuildWithBindings([]);
+    $this->rebuildWithFlysystemBindings([]);
     self::assertSame(PublicStream::class, $this->container->get('stream_wrapper_manager')->getClass('public'));
   }
 

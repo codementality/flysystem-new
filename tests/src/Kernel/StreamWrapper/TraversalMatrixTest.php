@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
+require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
+
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemKernelTestTrait;
 use Drupal\KernelTests\KernelTestBase;
 use League\Flysystem\CorruptedPathDetected;
 use League\Flysystem\FilesystemOperator;
@@ -35,6 +40,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class TraversalMatrixTest extends KernelTestBase {
 
+  use FlysystemKernelTestTrait;
+  use FlysystemBootTestTrait;
+
   /**
    * {@inheritdoc}
    */
@@ -57,47 +65,26 @@ final class TraversalMatrixTest extends KernelTestBase {
     // the containment rule, which is correct behavior, not the subject
     // of this suite.
     $this->root = \Drupal::root() . '/sites/default/files/m2-04-' . getmypid();
-    mkdir($this->root, 0777, TRUE);
+    $this->createScratchRoot($this->root);
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    $this->rrmdir($this->root);
+    $this->removeScratchRoot($this->root);
     chdir(\Drupal::root());
     parent::tearDown();
-  }
-
-  /**
-   * Best-effort recursive cleanup.
-   */
-  private function rrmdir(string $dir): void {
-    if (!is_dir($dir)) {
-      return;
-    }
-    foreach (scandir($dir) ?: [] as $entry) {
-      if ($entry === '.' || $entry === '..') {
-        continue;
-      }
-      $path = $dir . '/' . $entry;
-      is_dir($path) ? $this->rrmdir($path) : @unlink($path);
-    }
-    @rmdir($dir);
   }
 
   /**
    * Binds public:// to the scratch root and returns its operator.
    */
   protected function bindAndOperator(?string $root = NULL): FilesystemOperator {
-    $this->setSetting('flysystem', [
+    $this->rebuildWithFlysystemBindings([
       'public' => ['driver' => 'local', 'config' => ['root' => $root ?? $this->root]],
     ]);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    \Drupal::setContainer($this->container);
     $manager = $this->container->get('stream_wrapper_manager');
-    $manager->register();
     self::assertSame(FlysystemPublicStream::class, $manager->getClass('public'));
     /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
     $factory = $this->container->get('flysystem.operator_factory');
@@ -227,7 +214,7 @@ final class TraversalMatrixTest extends KernelTestBase {
     $appRoot = \Drupal::root();
     $relative = 'm2-04-anchor-probe';
     $absolute = $appRoot . '/' . $relative;
-    @mkdir($absolute, 0777, TRUE);
+    $this->createScratchRoot($absolute);
     try {
       $this->setSetting('flysystem', [
         'public' => ['driver' => 'local', 'config' => ['root' => $relative]],
