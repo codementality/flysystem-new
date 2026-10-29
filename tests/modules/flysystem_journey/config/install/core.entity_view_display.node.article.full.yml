@@ -6,7 +6,7 @@ dependencies:
     - field.field.node.article.field_media_image
     - field.field.node.article.field_public_file
     - field.field.node.article.field_public_image
-    - field.field.node.article.field_public_image_b
+    - field.field.node.article.field_image_b
     - image.style.m211_crop
     - image.style.medium
     - node.type.article
@@ -29,7 +29,7 @@ content:
     third_party_settings: {  }
     weight: 0
     region: content
-  field_public_image_b:
+  field_image_b:
     type: image
     label: hidden
     settings:

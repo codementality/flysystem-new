@@ -3,7 +3,7 @@ status: true
 dependencies:
   module:
     - image
-id: m211_scale
+name: m211_scale
 label: 'Journey scale 50'
 effects:
   m211_scale_effect:

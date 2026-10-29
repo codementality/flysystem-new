@@ -4,7 +4,7 @@ dependencies:
   config:
     - core.entity_view_mode.node.scaled
     - field.field.node.article.field_public_image
-    - field.field.node.article.field_public_image_b
+    - field.field.node.article.field_image_b
     - image.style.m211_scale
     - node.type.article
   module:
@@ -29,4 +29,4 @@ content:
 hidden:
   field_media_image: true
   field_public_file: true
-  field_public_image_b: true
+  field_image_b: true
