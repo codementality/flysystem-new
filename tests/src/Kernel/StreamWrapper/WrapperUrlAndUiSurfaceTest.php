@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
-require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
-require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
-
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
