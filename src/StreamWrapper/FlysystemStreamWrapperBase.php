@@ -728,10 +728,34 @@ abstract class FlysystemStreamWrapperBase implements StreamWrapperInterface {
    * local storage and creates an empty file when the path is missing.
    * The specific timestamps a caller passes cannot be applied — no
    * operator call sets them — so a requested mtime lands as the moment of
-   * the write. Owner/group/access changes have no answer in the storage
-   * abstraction at all and are refused, never half-applied.
+   * the write. STREAM_META_ACCESS answers through the binding's only
+   * permission model: a mode readable beyond the owner asks the operator
+   * for public visibility, an owner-only mode for private — a real
+   * permission change via the operator's own call, with the exact bits
+   * governed by the binding's mode map, the same map every write already
+   * applies. Ownership (user or group) has no representation at all in
+   * the storage abstraction and keeps refusing, never half-applied.
    */
   public function stream_metadata($path, $option, $value) {
+    if ($option === STREAM_META_ACCESS) {
+      $storage = $this->storage();
+      if ($storage === NULL) {
+        return FALSE;
+      }
+      $target = StreamWrapperManager::getTarget($path) ?? '';
+      if ($target === '') {
+        return FALSE;
+      }
+      $visibility = ((int) $value & 0044) !== 0 ? Visibility::PUBLIC : Visibility::PRIVATE;
+      return $this->guarded(
+        function () use ($storage, $target, $visibility): bool {
+          $storage['operator']->setVisibility($target, $visibility);
+          return TRUE;
+        },
+        fn(): bool => FALSE,
+        'error',
+      );
+    }
     if ($option !== STREAM_META_TOUCH) {
       return FALSE;
     }
