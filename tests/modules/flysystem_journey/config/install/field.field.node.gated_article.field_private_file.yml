@@ -1,0 +1,25 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_private_file
+    - node.type.gated_article
+  module:
+    - file
+id: node.gated_article.field_private_file
+field_name: field_private_file
+entity_type: node
+bundle: gated_article
+label: 'Private file'
+description: ''
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  file_extensions: 'txt png'
+  max_filesize: ''
+  description_field: false
+  handler: 'default:file'
+  handler_settings: {  }
+field_type: file

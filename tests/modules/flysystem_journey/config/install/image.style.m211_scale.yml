@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - image
+id: m211_scale
+label: 'Journey scale 50'
+effects:
+  m211_scale_effect:
+    id: image_scale
+    label: 'Scale to 50'
+    weight: 1
+    data:
+      width: 50
+      height: null
+      upscale: false

@@ -1,0 +1,59 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - core.entity_view_mode.node.full
+    - field.field.node.article.field_media_image
+    - field.field.node.article.field_public_file
+    - field.field.node.article.field_public_image
+    - field.field.node.article.field_public_image_b
+    - image.style.m211_crop
+    - image.style.medium
+    - node.type.article
+  module:
+    - image
+    - user
+id: node.article.full
+targetEntityType: node
+bundle: article
+mode: full
+content:
+  field_public_image:
+    type: image
+    label: hidden
+    settings:
+      image_style: medium
+      image_link: ''
+      image_loading:
+        attribute: lazy
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_public_image_b:
+    type: image
+    label: hidden
+    settings:
+      image_style: m211_crop
+      image_link: ''
+      image_loading:
+        attribute: lazy
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  field_media_image:
+    type: entity_reference_entity_view
+    label: hidden
+    settings:
+      view_mode: default
+      link: false
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_public_file:
+    type: file_url_plain
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 2
+    region: content
+hidden: {  }
