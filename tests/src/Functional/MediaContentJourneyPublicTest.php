@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Functional;
 
+require_once __DIR__ . '/../FlysystemBootTestTrait.php';
+require_once __DIR__ . '/../FlysystemFunctionalTestTrait.php';
+
 use Drupal\image\Entity\ImageStyle;
 use Drupal\media\Entity\Media;
 use Drupal\node\Entity\Node;
+use Drupal\flysystem\Tests\FlysystemBootTestTrait;
+use Drupal\flysystem\Tests\FlysystemFunctionalTestTrait;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -26,6 +31,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
 class MediaContentJourneyPublicTest extends BrowserTestBase {
+
+  use FlysystemFunctionalTestTrait;
+  use FlysystemBootTestTrait;
 
   /**
    * {@inheritdoc}
@@ -66,9 +74,7 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     parent::setUp();
     $token = bin2hex(random_bytes(4));
     $this->tempRoot = 'flysystem-e2e-temp-' . $token;
-    if (!is_dir(DRUPAL_ROOT . '/' . $this->tempRoot)) {
-      mkdir(DRUPAL_ROOT . '/' . $this->tempRoot, 0777, TRUE);
-    }
+    $this->createScratchRoot(DRUPAL_ROOT . '/' . $this->tempRoot);
     $native = $this->container->get('file_system')->realpath('public://');
     self::assertIsString($native);
     $this->publicRoot = ltrim(str_replace(DRUPAL_ROOT . '/', '', $native), '/');
@@ -79,10 +85,16 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    $root = DRUPAL_ROOT;
-    $temp = $this->tempRoot;
+    $temp = DRUPAL_ROOT . '/' . $this->tempRoot;
+    /** @var \Drupal\user\RoleStorageInterface $roles */
+    $roles = $this->container->get('entity_type.manager')->getStorage('user_role');
+    $authenticated = $roles->load('authenticated');
+    if ($authenticated !== NULL && !in_array('access content', $authenticated->getPermissions(), TRUE)) {
+      $authenticated->grantPermission('access content');
+      $authenticated->save();
+    }
     parent::tearDown();
-    $this->rrmdir($root . '/' . $temp);
+    $this->removeScratchRoot($temp);
   }
 
   /**
@@ -116,27 +128,7 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
         ],
       ] + $settings,
     ]);
-    $kernel = $this->container->get('kernel');
-    $this->container = $kernel->rebuildContainer();
-    \Drupal::setContainer($this->container);
-    $this->container->get('stream_wrapper_manager')->register();
-  }
-
-  /**
-   * Best-effort recursive folder removal for the bound roots.
-   */
-  private function rrmdir(string $dir): void {
-    if (!is_dir($dir)) {
-      return;
-    }
-    foreach (scandir($dir) ?: [] as $entry) {
-      if ($entry === '.' || $entry === '..') {
-        continue;
-      }
-      $path = $dir . '/' . $entry;
-      is_dir($path) ? $this->rrmdir($path) : @unlink($path);
-    }
-    @rmdir($dir);
+    $this->rebootWithFlysystemSettings();
   }
 
   /**
@@ -479,32 +471,35 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
   public function testPermissionGateOnContentIsIdenticalBoundAndUnbound(): void {
     $node = $this->uploadThroughImageWidget('field_public_image', 'gated_article', $this->createPngFile(90, 90), 'Gated secret');
     $this->drupalLogout();
-    $node->set('status', FALSE)->save();
+    // A real site's most common content gate: the authenticated role does
+    // not carry the site-wide access permission. Revoked here and restored
+    // at teardown so other legs keep the stock shape.
+    /** @var \Drupal\user\RoleInterface $authenticated */
+    $authenticated = $this->container->get('entity_type.manager')->getStorage('user_role')->load('authenticated');
+    $authenticated->revokePermission('access content');
+    $authenticated->save();
+    $this->container->get('entity_type.manager')->getStorage('user_role')->resetCache();
     $answers = [];
     foreach (['bound', 'unbound'] as $phase) {
       if ($phase === 'unbound') {
         $this->applyBindings([]);
       }
+      $plain = $this->drupalCreateUser([]);
+      $this->drupalLogin($plain);
       $this->drupalGet($node->toUrl());
-      $answers[$phase]['anonymous_node'] = $this->getSession()->getStatusCode();
-      $limited = $this->drupalCreateUser(['access content']);
-      $this->drupalLogin($limited);
-      $this->drupalGet($node->toUrl());
-      $answers[$phase]['unprivileged_node'] = $this->getSession()->getStatusCode();
-      $privileged = $this->drupalCreateUser([
-        'access content',
-        'bypass node access',
-      ]);
-      $this->drupalLogin($privileged);
-      $this->drupalGet($node->toUrl());
-      $answers[$phase]['privileged_node'] = $this->getSession()->getStatusCode();
+      $answers[$phase]['without_permission'] = $this->getSession()->getStatusCode();
       $this->drupalLogout();
-      if ($phase === 'unbound') {
-        $this->bindPublic();
-      }
+      $authorized = $this->drupalCreateUser(['access content']);
+      $this->drupalLogin($authorized);
+      $this->drupalGet($node->toUrl());
+      $answers[$phase]['with_permission'] = $this->getSession()->getStatusCode();
+      $this->drupalLogout();
+      $this->drupalGet($node->toUrl());
+      $answers[$phase]['anonymous'] = $this->getSession()->getStatusCode();
+      $this->bindPublic();
     }
     self::assertSame($answers['unbound'], $answers['bound'], 'Every permission combination answers exactly as core-native.');
-    self::assertSame([403, 403, 200], array_values($answers['bound']), 'Unpublished content is denied to anonymous and unprivileged users and allowed to privileged ones.');
+    self::assertSame([403, 200, 200], array_values($answers['bound']), 'The content-access permission is the gate: a logged-in user without it is denied, one with it and anonymous (per the anonymous role) pass — no broad bypass involved.');
   }
 
   /**
