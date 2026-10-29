@@ -59,6 +59,12 @@ final class FlysystemServiceProvider implements ServiceProviderInterface {
         continue;
       }
       $definition = new Definition($class);
+      // Public by necessity: the wrapper manager's service locator is built
+      // from tags at compile time, and a replacement definition that nothing
+      // else references by id is dropped as unused when the container is
+      // compiled for production (test-mode containers keep every service,
+      // which is why this must be held here rather than discovered there).
+      $definition->setPublic(TRUE);
       $definition->addTag('stream_wrapper', ['scheme' => $scheme]);
       // Re-point an existing definition, or introduce one for a scheme
       // core never registered (for example private with no private file
