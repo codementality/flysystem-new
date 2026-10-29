@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Unit\Drush;
+namespace Drupal\Tests\flysystem\Unit\Drush;
 
 use Drupal\flysystem\Drush\Commands\FlysystemVerifyCommand;
 use Drupal\flysystem\Verification\BindingVerifier;

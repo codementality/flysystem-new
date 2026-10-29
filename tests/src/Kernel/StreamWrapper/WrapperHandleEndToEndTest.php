@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
+namespace Drupal\Tests\flysystem\Kernel\StreamWrapper;
 
 use Drupal\flysystem\StreamWrapper\FlysystemPrivateStream;
 use Drupal\Tests\flysystem\Traits\FlysystemBootTestTrait;

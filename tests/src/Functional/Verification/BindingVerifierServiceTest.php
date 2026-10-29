@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Functional\Verification;
+namespace Drupal\Tests\flysystem\Functional\Verification;
 
 use Drupal\flysystem\Verification\BindingVerifier;
 use Drupal\Tests\BrowserTestBase;
