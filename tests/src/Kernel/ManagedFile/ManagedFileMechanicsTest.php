@@ -6,7 +6,6 @@ namespace Drupal\flysystem\Tests\Kernel\ManagedFile;
 
 use Drupal\Core\File\FileExists;
 use Drupal\file\Entity\File;
-use Drupal\image\Entity\ImageStyle;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -30,11 +29,13 @@ final class ManagedFileMechanicsTest extends KernelTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['flysystem', 'file', 'image', 'user'];
+  protected static $modules = ['flysystem', 'file', 'user'];
 
   /**
-   * The bound root as configured: relative, so it lives inside the
-   * webroot the public scheme's containment rule requires.
+   * The configured relative root, inside the required webroot.
+   *
+   * Relative keeps the public binding inside the webroot the containment
+   * rule requires.
    *
    * @var string
    */
@@ -157,7 +158,7 @@ final class ManagedFileMechanicsTest extends KernelTestBase {
    * host filesystem: write through a good binding, then rebind the scheme
    * to a broken driver. Now the wrapper's unlink answers its recorded
    * refusal, core's delete wraps that in a file exception, and the entity
-   * delete layer catches and ignores it. The posture the row promises:
+   * delete layer catches and ignores it. The promised posture is:
    * no fatal, entity row gone, the object that could not be removed stays
    * exactly where it is, nothing pretends the removal happened.
    */
