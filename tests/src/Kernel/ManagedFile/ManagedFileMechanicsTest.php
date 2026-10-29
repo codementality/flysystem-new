@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\ManagedFile;
 
-require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
-require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
-
 use Drupal\Core\File\FileExists;
 use Drupal\file\Entity\File;
 use Drupal\flysystem\Tests\FlysystemBootTestTrait;

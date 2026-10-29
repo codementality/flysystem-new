@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\StreamWrapper;
 
-require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
-require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
-
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
 use Drupal\flysystem\Factory\OperatorFactory;

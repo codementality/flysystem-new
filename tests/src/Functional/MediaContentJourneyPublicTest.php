@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Functional;
 
-require_once __DIR__ . '/../FlysystemBootTestTrait.php';
-require_once __DIR__ . '/../FlysystemFunctionalTestTrait.php';
-
 use Drupal\image\Entity\ImageStyle;
 use Drupal\media\Entity\Media;
 use Drupal\node\Entity\Node;

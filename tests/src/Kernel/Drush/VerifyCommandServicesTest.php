@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Tests\Kernel\Drush;
 
-require_once __DIR__ . '/../../FlysystemBootTestTrait.php';
-require_once __DIR__ . '/../../FlysystemKernelTestTrait.php';
-
 use Consolidation\AnnotatedCommand\CommandFileDiscovery;
 use Consolidation\AnnotatedCommand\CommandResult;
 use Drupal\flysystem\Drush\Commands\FlysystemVerifyCommand;
