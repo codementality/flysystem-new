@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Kernel\Drush;
+namespace Drupal\Tests\flysystem\Kernel\Drush;
 
 use Consolidation\AnnotatedCommand\CommandFileDiscovery;
 use Consolidation\AnnotatedCommand\CommandResult;

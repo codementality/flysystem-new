@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Functional;
+namespace Drupal\Tests\flysystem\Functional;
 
 use Drupal\Tests\flysystem\Traits\FlysystemBootTestTrait;
 use Drupal\Tests\flysystem\Traits\FlysystemFunctionalTestTrait;
