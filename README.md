@@ -66,7 +66,12 @@ You never configure these. Files and folders are created with your
 site's standard Drupal permissions — the same ones set by the
 `file_chmod_file` and `file_chmod_directory` settings you may already
 have — so private folders land as private (owner read/write only)
-without any extra work.
+without any extra work. The same policy answers code that tries to
+change permissions afterward: such requests are applied through the
+binding's public-or-private model rather than raw mode numbers, so the
+configured policy always wins. See [BEHAVIOR.md](BEHAVIOR.md) for the
+full plain-language list of what changes when a path is bound, and what
+does not.
 
 ## Upgrading from the old (2.x) version of this module
 
