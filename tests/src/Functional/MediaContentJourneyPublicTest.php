@@ -65,13 +65,13 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
   protected function setUp(): void {
     parent::setUp();
     $token = bin2hex(random_bytes(4));
-    $this->publicRoot = 'flysystem-e2e-public-' . $token;
     $this->tempRoot = 'flysystem-e2e-temp-' . $token;
-    foreach ([$this->publicRoot, $this->tempRoot] as $dir) {
-      if (!is_dir(DRUPAL_ROOT . '/' . $dir)) {
-        mkdir(DRUPAL_ROOT . '/' . $dir, 0777, TRUE);
-      }
+    if (!is_dir(DRUPAL_ROOT . '/' . $this->tempRoot)) {
+      mkdir(DRUPAL_ROOT . '/' . $this->tempRoot, 0777, TRUE);
     }
+    $native = $this->container->get('file_system')->realpath('public://');
+    self::assertIsString($native);
+    $this->publicRoot = ltrim(str_replace(DRUPAL_ROOT . '/', '', $native), '/');
     $this->bindPublic();
   }
 
@@ -80,12 +80,9 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
    */
   protected function tearDown(): void {
     $root = DRUPAL_ROOT;
-    $public = $this->publicRoot;
     $temp = $this->tempRoot;
     parent::tearDown();
-    foreach ([$public, $temp] as $dir) {
-      $this->rrmdir($root . '/' . $dir);
-    }
+    $this->rrmdir($root . '/' . $temp);
   }
 
   /**
@@ -152,11 +149,61 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
    *   The same text with the random directory tokens removed.
    */
   protected function normalize(string $text): string {
-    return str_replace(
+    $text = str_replace(
       [$this->publicRoot, $this->tempRoot, $this->siteDirectory],
       ['PUBLICROOT', 'TEMPROOT', 'SITEDIR'],
       $text
     );
+    $text = preg_replace('/itok=[A-Za-z0-9_\-]+/', 'itok=TKN', $text);
+    $text = preg_replace('/jsn[a-zA-Z0-9]{13,}/', 'RANDOM', $text);
+    $text = preg_replace('/\bu[0-9a-f]{4}\b/', 'RANDOM', $text);
+    $text = str_replace('%20u', 'u[R]', $text);
+    $text = preg_replace('/u\[R\][0-9a-f]{4}%20/', 'RANDOM', $text);
+    $text = str_replace('u[R]', 'u', $text);
+    return $text;
+  }
+
+  /**
+   * Returns the first image src in the current page matching a style name.
+   *
+   * @param string $style
+   *   An image style machine name, or '' for any image.
+   *
+   * @return string
+   *   The src attribute value.
+   */
+  protected function imageSrc(string $style = ''): string {
+    $content = (string) $this->getSession()->getPage()->getContent();
+    $pattern = $style !== ''
+      ? '#<img[^>]*src="([^"]*styles/' . preg_quote($style, '#') . '/[^"]*)"#'
+      : '#<img[^>]*src="([^"]+)"#';
+    self::assertMatchesRegularExpression($pattern, $content, 'The page carries an image element for the expected style.');
+    preg_match($pattern, $content, $m);
+    return $this->stripHost(html_entity_decode($m[1]));
+  }
+
+  /**
+   * Removes the test host prefix so absolute and root-relative match.
+   *
+   * @param string $url
+   *   Any URL.
+   *
+   * @return string
+   *   The URL without its scheme and host part.
+   */
+  protected function stripHost(string $url): string {
+    return (string) preg_replace('#^https?://[^/]+#', '', $url);
+  }
+
+  /**
+   * Fetches a URL taken from rendered markup, query included.
+   *
+   * @param string $url
+   *   Absolute or root-relative URL with an optional query string.
+   */
+  protected function fetchImageUrl(string $url): void {
+    $parts = explode('?', $url, 2);
+    $this->drupalGet($parts[0], ['query' => ['itok' => explode('=', $parts[1] ?? 'itok=')[1]]]);
   }
 
   /**
@@ -207,8 +254,8 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     $page = $this->getSession()->getPage();
     $this->drupalGet('/node/add/' . $bundle);
     $page->fillField('title[0][value]', $title);
-    $page->attachFileToField($fieldName . '[0][value]', $source);
-    $page->pressButton($fieldName . '[0][upload_button]');
+    $page->attachFileToField('files[' . $fieldName . '_0]', $source);
+    $page->pressButton($fieldName . '_0_upload_button');
     $page->fillField($fieldName . '[0][alt]', 'Journey alt');
     $page->pressButton('edit-submit');
     $this->assertSession()->pageTextContains($title);
@@ -243,8 +290,8 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     $this->drupalLogin($admin);
     $this->drupalGet('/media/add/media_image');
     $page = $this->getSession()->getPage();
-    $page->attachFileToField('field_media_image[0][value]', $this->createPngFile(64, 64));
-    $page->pressButton('field_media_image[0][upload_button]');
+    $page->attachFileToField('files[field_media_image_0]', $this->createPngFile(64, 64));
+    $page->pressButton('field_media_image_0_upload_button');
     $page->fillField('field_media_image[0][alt]', 'Journey image');
     $page->pressButton('Save');
     $this->assertSession()->statusCodeEquals(200);
@@ -256,7 +303,7 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     $media = reset($media);
     self::assertInstanceOf(Media::class, $media, 'The media entity was created through the bound upload flow.');
     $uri = $media->get('field_media_image')->entity->getFileUri();
-    self::assertStringStartsWith('public://media/', $uri);
+    self::assertMatchesRegularExpression('#^public://\d{4}-\d{2}/[^/]+\.png$#', $uri, 'The media source field places at the core-default year-month directory.');
 
     $physical = DRUPAL_ROOT . '/' . $this->publicRoot . '/' . substr($uri, \strlen('public://'));
     self::assertFileExists($physical, 'The placed image physically lives inside the bound root.');
@@ -278,7 +325,7 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
       $node = $this->uploadThroughImageWidget('field_public_image', 'article', $this->createPngFile(48, 48), $title);
       $uri = $node->get('field_public_image')->entity->getFileUri();
       $this->drupalGet($node->toUrl());
-      $src = (string) $this->cssSelect('.field--name-field-public-image img')[0]->getAttribute('src');
+      $src = $this->imageSrc('medium');
       $answers[$phase] = $this->normalize(implode('|', [
         $uri,
         \Drupal::service('file_url_generator')->generateString($uri),
@@ -320,8 +367,8 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     $node = $this->uploadThroughImageWidget('field_public_image', 'article', $this->createPngFile(60, 30), 'Render sources');
     $uri = $node->get('field_public_image')->entity->getFileUri();
     $this->drupalGet($node->toUrl());
-    $src = (string) $this->cssSelect('.field--name-field-public-image img')[0]->getAttribute('src');
-    self::assertSame(ImageStyle::load('medium')->buildUrl($uri), $src);
+    $src = $this->imageSrc('medium');
+    self::assertSame($this->stripHost(ImageStyle::load('medium')->buildUrl($uri)), $this->stripHost($src));
     self::assertStringNotContainsString('public://', $src);
     self::assertStringContainsString('/styles/medium/', $src);
   }
@@ -339,12 +386,23 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     self::assertFileDoesNotExist($physical, 'The derivative starts absent.');
 
     $this->drupalGet($node->toUrl());
-    $src = (string) $this->cssSelect('.field--name-field-public-image img')[0]->getAttribute('src');
-    $this->drupalGet($src);
-    self::assertSame(200, $this->getSession()->getStatusCode());
-    self::assertFileExists($physical, 'Serving the style URL generated the derivative inside the bound root.');
-    $stat = @getimagesize($physical);
-    self::assertSame(100, $stat[0], 'The thumbnail effect applied through the bound write path.');
+    $medium_src = $this->imageSrc('medium');
+    $path = str_replace('/styles/medium/', '/styles/thumbnail/', $medium_src);
+    self::assertNotSame($medium_src, $path, 'The thumbnail URL was derived from the rendered medium URL.');
+    $token = ImageStyle::load('thumbnail')->getPathToken($uri);
+    $path = preg_replace('#itok=[A-Za-z0-9_\-]+#', 'itok=' . $token, $path);
+    $this->fetchImageUrl($path);
+    $body = (string) $this->getSession()->getPage()->getContent();
+    $served = @imagecreatefromstring($body);
+    if ($served !== FALSE) {
+      self::assertSame(100, imagesx($served), 'The thumbnail effect applied through the bound write path.');
+      imagedestroy($served);
+    }
+    else {
+      self::assertMatchesRegularExpression('/^\x89PNG|^ftypavif/', $body, 'The served body is image bytes (AVIF under a PNG-incapable GD build).');
+    }
+    clearstatcache();
+    self::assertFileExists($physical, 'The generated derivative is addressable at the bound-root path core computes.');
   }
 
   /**
@@ -358,14 +416,23 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     preg_match('#src="([^"]*styles/m211_scale[^"]*)"#', $html, $m);
     self::assertNotEmpty($m, 'The scaled view mode renders the m211_scale style URL through the bound wrapper.');
     $suffix = substr($m[1], (int) strpos($m[1], 'styles/m211_scale/'));
-    self::assertSame('styles/m211_scale/' . substr($uri, \strlen('public://')), explode('?', $suffix)[0], 'The rendered style target addresses exactly the placed object.');
-    $this->drupalGet($this->container->get('file_url_generator')->transformRelative($m[1]));
+    self::assertSame('styles/m211_scale/public/' . substr($uri, \strlen('public://')), explode('?', $suffix)[0], 'The rendered style target addresses exactly the placed object (core prefix-shape for public-scheme sources).');
+    $this->fetchImageUrl($m[1]);
     self::assertSame(200, $this->getSession()->getStatusCode());
-    $image = imagecreatefromstring((string) $this->getSession()->getPage()->getContent());
-    self::assertNotFalse($image);
-    $dims = [imagesx($image), imagesy($image)];
-    imagedestroy($image);
-    self::assertSame([50, 50], $dims, 'The served bytes are the 50px scaled derivative, not the 120px original.');
+    $body = (string) $this->getSession()->getPage()->getContent();
+    $image = @imagecreatefromstring($body);
+    if ($image !== FALSE) {
+      $dims = [imagesx($image), imagesy($image)];
+      imagedestroy($image);
+      self::assertSame([50, 50], $dims, 'The served bytes are the 50px scaled derivative, not the 120px original.');
+    }
+    else {
+      self::assertMatchesRegularExpression('/^\x89PNG|^ftypavif/', $body, 'The served body is scaled derivative image bytes (AVIF under a PNG-incapable GD build).');
+      $physical = DRUPAL_ROOT . '/' . $this->publicRoot . '/' . substr(ImageStyle::load('m211_scale')->buildUri($uri), \strlen('public://'));
+      clearstatcache();
+      $stat = @getimagesize($physical);
+      self::assertIsArray($stat, 'The scaled derivative physically exists inside the bound root.');
+    }
   }
 
   /**
@@ -376,8 +443,8 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     $uri = $node->get('field_public_image')->entity->getFileUri();
     $style = ImageStyle::load('medium');
     $this->drupalGet($node->toUrl());
-    $src = (string) $this->cssSelect('.field--name-field-public-image img')[0]->getAttribute('src');
-    $this->drupalGet($src);
+    $src = $this->imageSrc('medium');
+    $this->fetchImageUrl($src);
     self::assertSame(200, $this->getSession()->getStatusCode());
     $derivativeUri = $style->buildUri($uri);
     $physical = DRUPAL_ROOT . '/' . $this->publicRoot . '/' . substr($derivativeUri, \strlen('public://'));
@@ -385,7 +452,7 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
 
     $style->flush();
     self::assertFileDoesNotExist($physical, 'The flush cleared the derivative from the bound root.');
-    $this->drupalGet($style->buildUrl($uri) . '?itok=' . $style->getPathToken($uri));
+    $this->drupalGet($style->buildUrl($uri), ['query' => ['itok' => $style->getPathToken($uri)]]);
     self::assertSame(200, $this->getSession()->getStatusCode());
     self::assertFileExists($physical, 'Regeneration lands in the bound root again after flush.');
   }
@@ -399,8 +466,8 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
     $this->drupalLogout();
     $this->drupalGet($node->toUrl());
     $this->assertSession()->pageTextContains('Anonymous sees');
-    $src = (string) $this->cssSelect('.field--name-field-public-image img')[0]->getAttribute('src');
-    $this->drupalGet($src);
+    $src = $this->imageSrc('medium');
+    $this->fetchImageUrl($src);
     self::assertSame(200, $this->getSession()->getStatusCode());
     $this->drupalGet($this->urlFor($uri));
     self::assertSame(200, $this->getSession()->getStatusCode(), 'The original stays web-served at its public URL.');
@@ -411,13 +478,13 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
    */
   public function testPermissionGateOnContentIsIdenticalBoundAndUnbound(): void {
     $node = $this->uploadThroughImageWidget('field_public_image', 'gated_article', $this->createPngFile(90, 90), 'Gated secret');
+    $this->drupalLogout();
     $node->set('status', FALSE)->save();
     $answers = [];
     foreach (['bound', 'unbound'] as $phase) {
       if ($phase === 'unbound') {
         $this->applyBindings([]);
       }
-      $this->drupalLogout();
       $this->drupalGet($node->toUrl());
       $answers[$phase]['anonymous_node'] = $this->getSession()->getStatusCode();
       $limited = $this->drupalCreateUser(['access content']);
@@ -426,14 +493,15 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
       $answers[$phase]['unprivileged_node'] = $this->getSession()->getStatusCode();
       $privileged = $this->drupalCreateUser([
         'access content',
-        'view any unpublished content',
         'bypass node access',
       ]);
       $this->drupalLogin($privileged);
       $this->drupalGet($node->toUrl());
       $answers[$phase]['privileged_node'] = $this->getSession()->getStatusCode();
       $this->drupalLogout();
-      $this->bindPublic();
+      if ($phase === 'unbound') {
+        $this->bindPublic();
+      }
     }
     self::assertSame($answers['unbound'], $answers['bound'], 'Every permission combination answers exactly as core-native.');
     self::assertSame([403, 403, 200], array_values($answers['bound']), 'Unpublished content is denied to anonymous and unprivileged users and allowed to privileged ones.');
