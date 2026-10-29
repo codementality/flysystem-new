@@ -1,0 +1,12 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: article
+label: Article
+description: 'Open article: exercised by the bound public-scheme journey.'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: false

@@ -1,0 +1,13 @@
+name: 'Flysystem journey fixtures'
+type: module
+description: 'Test-only content types, fields, displays and image styles for the end-to-end media journeys.'
+core_version_requirement: '^11'
+package: 'Testing'
+hidden: true
+dependencies:
+  - drupal:node
+  - drupal:field
+  - drupal:image
+  - drupal:file
+  - drupal:media
+  - drupal:media_library

@@ -1,0 +1,35 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.gated_article.field_private_file
+    - field.field.node.gated_article.field_public_image
+    - image.style.thumbnail
+    - node.type.gated_article
+  module:
+    - image
+    - user
+id: node.gated_article.full
+targetEntityType: node
+bundle: gated_article
+mode: full
+content:
+  field_public_image:
+    type: image
+    label: hidden
+    settings:
+      image_style: thumbnail
+      image_link: ''
+      image_loading:
+        attribute: lazy
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_private_file:
+    type: file_url_plain
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 1
+    region: content
+hidden: {  }

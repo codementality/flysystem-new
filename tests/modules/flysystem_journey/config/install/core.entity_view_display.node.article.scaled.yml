@@ -1,0 +1,32 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - core.entity_view_mode.node.scaled
+    - field.field.node.article.field_public_image
+    - field.field.node.article.field_public_image_b
+    - image.style.m211_scale
+    - node.type.article
+  module:
+    - image
+    - user
+id: node.article.scaled
+targetEntityType: node
+bundle: article
+mode: scaled
+content:
+  field_public_image:
+    type: image
+    label: hidden
+    settings:
+      image_style: m211_scale
+      image_link: ''
+      image_loading:
+        attribute: lazy
+    third_party_settings: {  }
+    weight: 0
+    region: content
+hidden:
+  field_media_image: true
+  field_public_file: true
+  field_public_image_b: true

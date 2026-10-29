@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - image
+id: m211_crop
+label: 'Journey crop 40x30'
+effects:
+  m211_crop_effect:
+    id: image_crop
+    label: 'Crop to 40x30'
+    weight: 1
+    data:
+      width: 40
+      height: 30
+      anchor: center-center
