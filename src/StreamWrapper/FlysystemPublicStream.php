@@ -55,4 +55,15 @@ final class FlysystemPublicStream extends FlysystemStreamWrapperBase {
     return PublicStream::baseUrl() . '/' . UrlHelper::encodePath($path);
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function getDirectoryPath() {
+    // The same web-path prefix core's public wrapper answers, from core's
+    // own helper: the image-style request processor and other URL-facing
+    // consumers derive paths from it, and a wrapper declaring local public
+    // storage must map URLs exactly as the scheme it replaced.
+    return PublicStream::basePath();
+  }
+
 }
