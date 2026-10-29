@@ -3,7 +3,7 @@ status: true
 dependencies:
   module:
     - image
-id: m211_crop
+name: m211_crop
 label: 'Journey crop 40x30'
 effects:
   m211_crop_effect:

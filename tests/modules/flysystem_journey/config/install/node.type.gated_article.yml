@@ -3,7 +3,7 @@ status: true
 dependencies:
   module:
     - node
-id: gated_article
+type: gated_article
 label: 'Gated article'
 description: 'Access-gated content type for the permission-matrix legs.'
 help: ''

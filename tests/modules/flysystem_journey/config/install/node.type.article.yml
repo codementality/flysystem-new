@@ -3,7 +3,7 @@ status: true
 dependencies:
   module:
     - node
-id: article
+type: article
 label: Article
 description: 'Open article: exercised by the bound public-scheme journey.'
 help: ''
