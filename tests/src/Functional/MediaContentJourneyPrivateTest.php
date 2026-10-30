@@ -7,6 +7,8 @@ namespace Drupal\Tests\flysystem\Functional;
 use Drupal\image\Entity\ImageStyle;
 use Drupal\media\Entity\Media;
 use Drupal\file\Entity\File;
+use Drupal\flysystem\StreamWrapper\FlysystemPrivateStream;
+use Drupal\flysystem\StreamWrapper\FlysystemTemporaryStream;
 use Drupal\node\Entity\Node;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\Tests\flysystem\Traits\FlysystemBootTestTrait;
@@ -66,6 +68,13 @@ class MediaContentJourneyPrivateTest extends BrowserTestBase {
   protected string $tempRoot;
 
   /**
+   * A second, isolated private root for the placement-isolation leg.
+   *
+   * @var string
+   */
+  protected string $isolationRoot;
+
+  /**
    * Whether the authenticated role's stock access was revoked this test.
    *
    * @var bool
@@ -83,7 +92,10 @@ class MediaContentJourneyPrivateTest extends BrowserTestBase {
     $native = $this->container->get('file_system')->realpath('private://');
     self::assertIsString($native, 'The harness must have a private file path before binding.');
     $this->privateRoot = ltrim(str_replace(DRUPAL_ROOT . '/', '', $native), '/');
+    $this->isolationRoot = 'flysystem-e2e-p-isolated-' . $token;
+    $this->createScratchRoot(DRUPAL_ROOT . '/' . $this->isolationRoot);
     $this->bindPrivate();
+    $this->assertBindingsAreLive();
   }
 
   /**
@@ -91,11 +103,13 @@ class MediaContentJourneyPrivateTest extends BrowserTestBase {
    */
   protected function tearDown(): void {
     $temp = DRUPAL_ROOT . '/' . $this->tempRoot;
+    $isolated = DRUPAL_ROOT . '/' . $this->isolationRoot;
     if ($this->roleRevoked) {
       $this->restoreAuthenticatedAccess();
     }
     parent::tearDown();
     $this->removeScratchRoot($temp);
+    $this->removeScratchRoot($isolated);
   }
 
   /**
@@ -124,6 +138,40 @@ class MediaContentJourneyPrivateTest extends BrowserTestBase {
       ],
     ]);
     $this->rebootWithFlysystemSettings();
+    if ($bindings !== []) {
+      $this->assertBindingsAreLive();
+    }
+  }
+
+  /**
+   * Proves the binding is live before anything measures through it.
+   *
+   * Without this precondition an inactive binding would still pass every
+   * placement leg, because the run's native-root shape stores bytes in the
+   * same folder core's wrapper would use. Asserting the manager's class-map
+   * and locator answers makes the seam's activation a tested fact here.
+   */
+  protected function assertBindingsAreLive(): void {
+    $manager = $this->container->get('stream_wrapper_manager');
+    self::assertSame(FlysystemPrivateStream::class, $manager->getClass('private'), 'private:// dispatches to the Flysystem wrapper while the binding is set.');
+    self::assertSame(FlysystemTemporaryStream::class, $manager->getClass('temporary'));
+    self::assertInstanceOf(FlysystemPrivateStream::class, $manager->getViaUri('private://liveness-probe.txt'));
+  }
+
+  /**
+   * Placement isolation: an alternate configured root receives the bytes.
+   */
+  public function testBoundRootReceivesBytesUnderAnIsolatedConfiguration(): void {
+    $this->applyBindings([
+      'private' => ['driver' => 'local', 'config' => ['root' => $this->isolationRoot]],
+      'temporary' => ['driver' => 'local', 'config' => ['root' => $this->tempRoot]],
+    ]);
+    $this->assertBindingsAreLive();
+    self::assertNotFalse(file_put_contents('private://isolated-write.txt', 'isolated-private'));
+    $isolated_target = DRUPAL_ROOT . '/' . $this->isolationRoot . '/isolated-write.txt';
+    self::assertFileExists($isolated_target, 'Bytes went to the configured root and nowhere else — dispatch cannot be core-native.');
+    self::assertSame('isolated-private', (string) file_get_contents($isolated_target));
+    $this->bindPrivate();
   }
 
   /**

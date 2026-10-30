@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\flysystem\Functional;
 
+use Drupal\flysystem\StreamWrapper\FlysystemPublicStream;
+use Drupal\flysystem\StreamWrapper\FlysystemTemporaryStream;
 use Drupal\image\Entity\ImageStyle;
 use Drupal\media\Entity\Media;
 use Drupal\node\Entity\Node;
@@ -65,17 +67,28 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
   protected string $tempRoot;
 
   /**
+   * A second, isolated public root for the placement-isolation leg.
+   *
+   * @var string
+   */
+  protected string $isolationRoot;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
     parent::setUp();
     $token = bin2hex(random_bytes(4));
     $this->tempRoot = 'flysystem-e2e-temp-' . $token;
-    $this->createScratchRoot(DRUPAL_ROOT . '/' . $this->tempRoot);
+    $this->isolationRoot = 'flysystem-e2e-isolated-' . $token;
+    foreach ([$this->tempRoot, $this->isolationRoot] as $dir) {
+      $this->createScratchRoot(DRUPAL_ROOT . '/' . $dir);
+    }
     $native = $this->container->get('file_system')->realpath('public://');
     self::assertIsString($native);
     $this->publicRoot = ltrim(str_replace(DRUPAL_ROOT . '/', '', $native), '/');
     $this->bindPublic();
+    $this->assertBindingsAreLive();
   }
 
   /**
@@ -126,6 +139,43 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
       ] + $settings,
     ]);
     $this->rebootWithFlysystemSettings();
+    if ($bindings !== []) {
+      $this->assertBindingsAreLive();
+    }
+  }
+
+  /**
+   * Proves the binding is live before anything measures through it.
+   *
+   * The journey's native-root shape puts Flysystem and core wrappers in the
+   * same folder; without this precondition a silently inactive binding would
+   * still pass every placement leg. Asserting the manager's class map and
+   * locator answers makes the seam's activation a tested fact inside this
+   * class, at the start and after every (re)binding.
+   */
+  protected function assertBindingsAreLive(): void {
+    $manager = $this->container->get('stream_wrapper_manager');
+    self::assertSame(FlysystemPublicStream::class, $manager->getClass('public'), 'public:// dispatches to the Flysystem wrapper while the binding is set.');
+    self::assertSame(FlysystemTemporaryStream::class, $manager->getClass('temporary'));
+    self::assertInstanceOf(FlysystemPublicStream::class, $manager->getViaUri('public://liveness-probe.txt'));
+  }
+
+  /**
+   * Placement isolation: only the configured root receives the bytes.
+   */
+  public function testBoundRootReceivesBytesUnderAnIsolatedConfiguration(): void {
+    $this->applyBindings([
+      'public' => ['driver' => 'local', 'config' => ['root' => $this->isolationRoot]],
+      'temporary' => ['driver' => 'local', 'config' => ['root' => $this->tempRoot]],
+    ]);
+    $native_target = DRUPAL_ROOT . '/' . $this->publicRoot . '/isolated-write.txt';
+    @unlink($native_target);
+    self::assertNotFalse(file_put_contents('public://isolated-write.txt', 'isolated'));
+    $isolated_target = DRUPAL_ROOT . '/' . $this->isolationRoot . '/isolated-write.txt';
+    self::assertFileExists($isolated_target, 'Bytes went to the configured root and nowhere else — dispatch cannot be core-native.');
+    self::assertSame('isolated', (string) file_get_contents($isolated_target));
+    self::assertFileDoesNotExist($native_target);
+    $this->bindPublic();
   }
 
   /**
