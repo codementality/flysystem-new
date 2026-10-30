@@ -352,6 +352,51 @@ class MediaContentJourneyPublicTest extends BrowserTestBase {
   }
 
   /**
+   * The module's own boundary behavior, with core compared honestly.
+   *
+   * Two verified answers, neither a claim core does not also make: raw
+   * writes through an escaping public target fail on BOTH baselines (core's
+   * local wrapper gained realpath containment in this codebase's version,
+   * so this is parity, not a strengthening), while the *normalized string*
+   * diverges — core's local lineage preserves a leading `../` where the
+   * replaced wrapper's non-local lineage collapses it. The leg pins the
+   * boundary answer users get through the binding AND the one observable
+   * difference core's own traversal quirk leaves behind.
+   */
+  public function testBoundOperatorBoundaryAndNormalizerPosture(): void {
+    $name = 'journey-' . bin2hex(random_bytes(3)) . '.txt';
+    $hostile = 'public://../' . $name;
+    $above = DRUPAL_ROOT . '/' . $name;
+
+    // Boundary answer (bound): the hostile write refuses, nothing lands
+    // above the root.
+    $wrote = @file_put_contents($hostile, 'X');
+    self::assertFalse($wrote, 'Through the binding the escaping target refuses the write.');
+    self::assertFileDoesNotExist($above);
+
+    // Same refusal unbound: parity, stated as parity (core's local wrapper
+    // also contains raw escapes in this version) — the leg exists so the
+    // claim is measured, not assumed.
+    $this->applyBindings([]);
+    $wrote_native = @file_put_contents('public://../' . $name . '-n', 'X');
+    self::assertFalse($wrote_native, 'Core-native refuses the same raw escape; containment is the shared floor.');
+    @unlink(DRUPAL_ROOT . '/' . $name . '-n');
+    $this->bindPublic();
+
+    // The surviving divergence is the normalizer's string posture: bound,
+    // core's non-local branch collapses the leading escape; unbound, the
+    // local branch preserves it. Both refuse on disk; only the address
+    // differs.
+    $manager = $this->container->get('stream_wrapper_manager');
+    self::assertSame('public://' . $name, $manager->normalizeUri($hostile), 'Bound (non-local lineage): the leading ../ collapses before the operator.');
+    $this->applyBindings([]);
+    $native_manager = $this->container->get('stream_wrapper_manager');
+    self::assertSame($hostile, $native_manager->normalizeUri($hostile), 'Unbound (local lineage): core preserves the leading ../ in the normalized string — the documented posture difference.');
+    $this->bindPublic();
+    $this->assertBindingsAreLive();
+  }
+
+  /**
    * P2: URI, generated URL, style URL, and rendered src match core exactly.
    */
   public function testUrlBuildingIsIdenticalBoundAndUnbound(): void {

@@ -104,11 +104,15 @@ Proven by: `WrapperMetadataEndToEndTest`, `ManagedFileMechanicsTest`.
 
 ## Paths that try to escape the bound folder are refused
 
-This is a deliberate strengthening. A path that walks out of the bound
-root — a leading `../` on a public scheme, for instance — fails the
-operation instead of reaching above the storage root; core's raw
-`fopen()` on a local path could do exactly that, because a local string
-path carries no boundary. Directory separators inside names follow the
+A path that walks out of the bound root — a leading `../` on a public
+scheme, for instance — fails the operation instead of reaching above the
+storage root. Core's own local wrapper refuses raw escapes as well, so
+the strengthening is about *where* the boundary is enforced and with what
+guarantees: through the binding the refusal comes from the storage
+library's traversal guard, applied to every operation and independent of
+whether a real path happens to resolve, and a failed attempt is always a
+refused operation with a log record rather than silent success or a
+thrown error. Directory separators inside names follow the
 storage library's rules, so a backslash in a name is part of the name
 on every platform, where core's local wrapper's conversion would split
 it on Windows. Names containing control characters are refused outright.
