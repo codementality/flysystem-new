@@ -2,6 +2,8 @@ langcode: en
 status: true
 dependencies:
   config:
+    - field.field.node.article.field_private_image
+    - field.field.node.article.field_private_file
     - field.field.node.article.field_media_image
     - field.field.node.article.field_public_file
     - field.field.node.article.field_public_image
@@ -45,6 +47,21 @@ content:
     region: content
     settings:
       preview_image_style: thumbnail
+      progress_indicator: throbber
+    third_party_settings: {  }
+  field_private_image:
+    type: image_image
+    weight: 5
+    region: content
+    settings:
+      preview_image_style: thumbnail
+      progress_indicator: throbber
+    third_party_settings: {  }
+  field_private_file:
+    type: file_generic
+    weight: 6
+    region: content
+    settings:
       progress_indicator: throbber
     third_party_settings: {  }
   field_public_file:
