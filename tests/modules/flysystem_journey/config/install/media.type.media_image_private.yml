@@ -1,0 +1,13 @@
+langcode: en
+status: true
+dependencies: {  }
+id: media_image_private
+label: 'Journey private image'
+description: "A locally hosted image file stored on the private scheme."
+source: image
+queue_thumbnail_downloads: false
+new_revision: false
+source_configuration:
+  source_field: field_media_image_private
+field_map:
+  name: name
