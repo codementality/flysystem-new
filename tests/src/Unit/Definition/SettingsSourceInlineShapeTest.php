@@ -16,7 +16,8 @@ use PHPUnit\Framework\TestCase;
  *
  * The recommended user-facing configuration is one entry per scheme,
  * each carrying a 'driver' plus a 'config' array — optionally with the
- * binding options 'disabled' and 'publicly_accessible' as siblings.
+ * binding option 'disabled' as a sibling. The publicly-accessible answer
+ * lives inside config as 'public', exactly as the 2.x module spelled it.
  * This is deliberately the shape the published flysystem 2.x module
  * used (its README, CONFIGURATION section), so upgrading sites need no
  * edits and basic configuration stays small; the two-layer
@@ -172,9 +173,15 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   }
 
   /**
-   * Verifies an explicit sibling publicly-accessible flag wins over config.
+   * Verifies the entry-level public flag is a rejected, guiding error.
+   *
+   * The 2.x module spelled the publicly-accessible answer only as
+   * config['public']; an entry-level 'publicly_accessible' sibling is a
+   * spelling this module invented and now removes, so a site writing it
+   * gets a typed error pointing at the recognized key instead of a
+   * silently preferred invented spelling.
    */
-  public function testFlatEntrySupportsPubliclyAccessibleSibling(): void {
+  public function testEntryLevelPubliclyAccessibleIsRejected(): void {
     new Settings([
       'flysystem' => [
         'cdn' => [
@@ -185,7 +192,8 @@ final class SettingsSourceInlineShapeTest extends TestCase {
       ],
     ]);
     $bindings = (new SettingsSource())->getSchemeBindings();
-    self::assertFalse($bindings['cdn']['publicly_accessible'], 'An explicit binding-level answer overrides the config-level public flag.');
+    self::assertSame([['publicly_accessible']], array_column($bindings, 'rejected_keys'), 'The rejected spelling is recorded on the binding for the validator (the grammar authority) to complain about lazily, scheme-local — the source itself stays presentation-only.');
+    self::assertTrue($bindings['cdn']['publicly_accessible'], 'config[public] is the recognized flag; it is never overridden by the invented spelling.');
   }
 
   /**
