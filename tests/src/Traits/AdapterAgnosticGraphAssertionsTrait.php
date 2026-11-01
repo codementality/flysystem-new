@@ -82,7 +82,7 @@ trait AdapterAgnosticGraphAssertionsTrait {
   protected function legUnboundIsNative(): void {
     $factory = $this->container->get('flysystem.operator_factory');
     self::assertNull(
-      $factory->operatorFor('graph_unbound'),
+      $factory->operatorFor('graph-unbound'),
       'Unbound schemes resolve to the core-native NULL answer; the graph builds nothing for them.'
     );
   }
@@ -93,7 +93,7 @@ trait AdapterAgnosticGraphAssertionsTrait {
   protected function legUnknownDriverTypedError(): void {
     $factory = $this->container->get('flysystem.operator_factory');
     try {
-      $factory->operatorFor('graph_ghost');
+      $factory->operatorFor('graph-ghost');
       self::fail('A ghost driver must raise the typed unknown-plugin error when touched.');
     }
     catch (UnknownAdapterPluginException $e) {
