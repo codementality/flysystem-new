@@ -65,11 +65,12 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
    * interpret stay inert) and scheme bindings to a deterministic
    * sanitized adapter id. Collisions after sanitization gain numeric
    * suffixes in sorted scheme order, so a configuration never silently
-   * loses a scheme. Binding options on the scheme entry ('disabled',
-   * 'publicly_accessible') are copied when boolean; a boolean
-   * config['public'] also answers the publicly-accessible question unless
-   * the binding-level sibling states it explicitly. Any other value is
-   * left inside the adapter config as inert data.
+   * loses a scheme. The binding option 'disabled' is copied when boolean;
+   * the boolean config['public'] answers the publicly-accessible
+   * question. An entry-level 'publicly_accessible' sibling — a spelling
+   * this module no longer recognizes — is recorded for the validator to
+   * reject lazily. Any other value is left inside the adapter config as
+   * inert data.
    *
    * @param array $layer
    *   The flat-form layer.
@@ -109,10 +110,17 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
       if (isset($entry['disabled']) && is_bool($entry['disabled'])) {
         $binding['disabled'] = $entry['disabled'];
       }
-      if (isset($entry['publicly_accessible']) && is_bool($entry['publicly_accessible'])) {
-        $binding['publicly_accessible'] = $entry['publicly_accessible'];
+      // The recognized public-flag grammar is the boolean config['public']
+      // — the spelling the published 2.x module used (its local adapter
+      // plugin constructed itself from that key). An entry-level
+      // 'publicly_accessible' sibling is a spelling this module invented
+      // and no longer recognizes: it is recorded on the binding, not
+      // honored, so the validator — the single grammar authority —
+      // raises it lazily, scheme-local, pointing at the recognized key.
+      if (array_key_exists('publicly_accessible', $entry)) {
+        $binding['rejected_keys'][] = 'publicly_accessible';
       }
-      elseif (isset($config['public']) && is_bool($config['public'])) {
+      if (isset($config['public']) && is_bool($config['public'])) {
         $binding['publicly_accessible'] = $config['public'];
       }
       $bindings[(string) $scheme] = $binding;

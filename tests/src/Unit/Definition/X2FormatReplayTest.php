@@ -43,20 +43,32 @@ final class X2FormatReplayTest extends TestCase {
   }
 
   /**
+   * The locality predicate the validator consumes: only 'local' is known.
+   *
+   * @param string $plugin_id
+   *   The plugin id being asked about.
+   *
+   * @return bool|null
+   *   TRUE for local storage, NULL for anything unknown.
+   */
+  public function localMode(string $plugin_id): ?bool {
+    return $plugin_id === 'local' ? TRUE : NULL;
+  }
+
+  /**
    * Builds a resolver over the settings facade knowing only 'local'.
    */
   private function resolver(): BindingResolver {
-    $is_local = static fn (string $plugin_id): ?bool => $plugin_id === 'local' ? TRUE : NULL;
     return new BindingResolver(
       [new SettingsSource()],
-      new SettingsValidator('/app-root', $is_local),
+      new SettingsValidator('/app-root', [$this, 'localMode']),
     );
   }
 
   /**
-   * Replays the 2.x README's local-example entry: accepted, presented, inert keys preserved.
+   * Replays the 2.x README's local-example entry: presented, inert keys kept.
    */
-  public function testLocalExampleEntryFromThe2xGuideReplaysUnchanged(): void {
+  public function testLocalExampleEntryReplaysUnchanged(): void {
     new Settings([
       'flysystem' => [
         'local-example' => [
@@ -83,19 +95,30 @@ final class X2FormatReplayTest extends TestCase {
           'description' => 'Custom description',
         ],
       ],
-    ], $source->getAdapterDefinitions(), 'The 2.x entry presents as a local adapter definition; the keys this module does not interpret pass through inert.');
+    ], $source->getAdapterDefinitions(), 'The 2.x entry presents as a local '
+      . 'adapter definition; keys this module does not interpret pass through '
+      . 'inert.');
 
     $resolved = $this->resolver()->resolve('local-example');
-    self::assertNotNull($resolved, 'The replayed entry resolves to a working definition.');
+    self::assertNotNull(
+      $resolved,
+      'The replayed entry resolves to a working definition.'
+    );
     self::assertSame('local', $resolved['plugin']);
-    self::assertTrue($resolved['publicly_accessible'], 'config[public] answers the flag exactly as the 2.x plugin read it.');
-    self::assertSame('sites/default/files/flysystem', $resolved['config']['root']);
+    self::assertTrue(
+      $resolved['publicly_accessible'],
+      'config[public] answers the flag exactly as the 2.x plugin read it.'
+    );
+    self::assertSame(
+      'sites/default/files/flysystem',
+      $resolved['config']['root']
+    );
   }
 
   /**
-   * Replays a 2.x ftp entry: the plugin word rides through; resolution names it unknown.
+   * Replays a 2.x ftp entry: the word rides through; unknown at resolve.
    */
-  public function testRemoteDriverWordRidesThroughAndNamesItselfWhenUnknown(): void {
+  public function testRemoteDriverWordRidesThroughAndIsUnknown(): void {
     new Settings([
       'flysystem' => [
         'ftpexample' => [
@@ -113,7 +136,11 @@ final class X2FormatReplayTest extends TestCase {
     ]);
 
     $adapters = (new SettingsSource())->getAdapterDefinitions();
-    self::assertSame('ftp', $adapters['ftpexample']['plugin'], 'The 2.x driver word is carried through the layers unchanged.');
+    self::assertSame(
+      'ftp',
+      $adapters['ftpexample']['plugin'],
+      'The 2.x driver word is carried through the layers unchanged.'
+    );
 
     $this->expectException(UnknownAdapterPluginException::class);
     $this->expectExceptionMessageMatches('/ftp/');
@@ -141,7 +168,7 @@ final class X2FormatReplayTest extends TestCase {
    *   An illegal scheme name.
    */
   #[DataProvider('illegalSchemeNames')]
-  public function testUndottedAndPlusSchemeNamesAreRejected(string $scheme): void {
+  public function testUndottedSchemeNamesAreRejected(string $scheme): void {
     $validator = new SettingsValidator('/app-root');
 
     $this->expectException(InvalidSchemeNameException::class);

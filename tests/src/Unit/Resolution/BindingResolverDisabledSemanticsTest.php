@@ -15,42 +15,56 @@ use PHPUnit\Framework\TestCase;
 /**
  * Pins the meaning of a disabled binding.
  *
- * 'disabled' means ignore this entry: the scheme resolves to
- * core-native storage and the entry itself is not validated at all —
- * a parked binding never raises and never logs, even when its
- * remaining content is malformed. That is the only reading an
- * operator can assume from the word, and it lets a site park a
- * binding (with stale config left in place for later) without paying
- * an error on every page that touches the scheme.
+ * 'disabled' means ignore this entry: the scheme resolves to core-native
+ * storage and the entry is not validated at all — a parked binding never
+ * raises and never logs, even when its remaining content is malformed.
+ * That is the only reading an operator can assume from the word, and it
+ * lets a site park a binding (stale config left in place for later)
+ * without paying an error on every page that touches the scheme.
  *
- * The boundary is asserted from both sides: an ENABLED malformed
- * binding still raises its typed error on touch (so the disabled
- * short-circuit cannot over-swing and silence real mistakes), while
- * the full-structure verification sweep still reports a parked
- * binding's defects — discoverable when asked, never in the way.
+ * The boundary is asserted from both sides: an enabled malformed binding
+ * still raises its typed error on touch — so the disabled short-circuit
+ * cannot over-swing and silence real mistakes — while the full-structure
+ * verification sweep still reports a parked binding's defects,
+ * discoverable when asked, never in the way.
  */
 #[Group('flysystem')]
 #[CoversNothing]
 final class BindingResolverDisabledSemanticsTest extends TestCase {
 
   /**
+   * The locality predicate the validator consumes: only 'local' is known.
+   *
+   * @param string $plugin_id
+   *   The plugin id being asked about.
+   *
+   * @return bool|null
+   *   TRUE for local storage, NULL for anything unknown.
+   */
+  public function localMode(string $plugin_id): ?bool {
+    return $plugin_id === 'local' ? TRUE : NULL;
+  }
+
+  /**
    * Builds a resolver over one settings-shaped source.
    */
   private function resolver(array $layer): BindingResolver {
-    $is_local = static fn (string $plugin_id): ?bool => $plugin_id === 'local' ? TRUE : NULL;
     return new BindingResolver(
       [new ArrayDefinitionSource($layer)],
-      new SettingsValidator('/app-root', $is_local),
+      new SettingsValidator('/app-root', [$this, 'localMode']),
     );
   }
 
   /**
-   * Verifies a disabled entry with malformed contents resolves core-native silently.
+   * A disabled entry with malformed contents resolves core-native silently.
    */
-  public function testDisabledMalformedEntryResolvesCoreNativeSilently(): void {
+  public function testDisabledMalformedResolvesCoreNativeSilently(): void {
     $resolver = $this->resolver([
       'adapters' => [
-        'main' => ['plugin' => 'local', 'config' => ['root' => 'files']],
+        'main' => [
+          'plugin' => 'local',
+          'config' => ['root' => 'files'],
+        ],
       ],
       'bindings' => [
         'parked' => [
@@ -61,30 +75,43 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
       ],
     ]);
 
-    self::assertNull($resolver->resolve('parked'), 'A disabled entry must be ignored whole — its malformed sibling never surfaces.');
+    self::assertNull(
+      $resolver->resolve('parked'),
+      'A disabled entry is ignored whole; its malformed sibling never surfaces.'
+    );
   }
 
   /**
-   * Verifies a parked neighbor does not hold other schemes hostage.
+   * A parked neighbor does not hold other schemes hostage.
    */
-  public function testOtherSchemesResolveNormallyWithParkedNeighbor(): void {
+  public function testOtherSchemesResolveWithParkedNeighbor(): void {
     $resolver = $this->resolver([
       'adapters' => [
-        'main' => ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']],
+        'main' => [
+          'plugin' => 'local',
+          'config' => ['root' => 'sites/default/files'],
+        ],
       ],
       'bindings' => [
-        'parked' => ['adapter' => 'nope', 'disabled' => TRUE, 'publicly_accessible' => 'junk'],
+        'parked' => [
+          'adapter' => 'nope',
+          'disabled' => TRUE,
+          'publicly_accessible' => 'junk',
+        ],
         'public' => ['adapter' => 'main'],
       ],
     ]);
 
     $resolved = $resolver->resolve('public');
-    self::assertNotNull($resolved, 'A well-formed scheme resolves normally no matter what a parked entry holds.');
+    self::assertNotNull(
+      $resolved,
+      'A well-formed scheme resolves normally regardless of a parked entry.'
+    );
     self::assertSame('local', $resolved['plugin']);
   }
 
   /**
-   * Verifies an enabled malformed binding still raises its typed error on touch.
+   * An enabled malformed binding still raises its typed error on touch.
    */
   public function testEnabledMalformedBindingStillRaises(): void {
     $resolver = $this->resolver([
@@ -103,11 +130,10 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
   }
 
   /**
-   * Verifies the full sweep still reports a parked binding's defects.
+   * The full sweep still reports a parked binding's malformed content.
    */
   public function testFullSweepStillReportsParkedDefects(): void {
-    $is_local = static fn (string $plugin_id): ?bool => $plugin_id === 'local' ? TRUE : NULL;
-    $validator = new SettingsValidator('/app-root', $is_local);
+    $validator = new SettingsValidator('/app-root', [$this, 'localMode']);
 
     $this->expectException(InvalidSettingsStructureException::class);
     $validator->assertValidStructure([
@@ -123,11 +149,10 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
   }
 
   /**
-   * Verifies the sweep reports a parked binding carrying the rejected spelling.
+   * The sweep reports the rejected spelling even on a disabled binding.
    */
-  public function testFullSweepReportsRejectedSpellingEvenOnDisabledBinding(): void {
-    $is_local = static fn (string $plugin_id): ?bool => $plugin_id === 'local' ? TRUE : NULL;
-    $validator = new SettingsValidator('/app-root', $is_local);
+  public function testSweepReportsRejectedSpellingOnDisabled(): void {
+    $validator = new SettingsValidator('/app-root', [$this, 'localMode']);
 
     $this->expectException(InvalidSettingsStructureException::class);
     $this->expectExceptionMessageMatches('/publicly_accessible.*config/');

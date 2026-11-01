@@ -23,7 +23,7 @@ class TestNamespaceConventionTest extends UnitTestCase {
   /**
    * Asserts every test file's namespace root and path correspondence.
    */
-  public function testAllTestFilesUseTheCoreStandardRootAndMatchTheirPaths(): void {
+  public function testNamespacesUseTheCoreStandardRootAndMirrorPaths(): void {
     $testsDir = dirname(__DIR__);
     $expectedRoot = 'Drupal\\Tests\\flysystem';
     $problems = [];
@@ -32,30 +32,38 @@ class TestNamespaceConventionTest extends UnitTestCase {
       new \RecursiveDirectoryIterator($testsDir, \FilesystemIterator::SKIP_DOTS)
     );
     foreach ($files as $file) {
-      if ($file->getExtension() !== 'php' || !str_ends_with($file->getFilename(), 'Test.php')) {
+      $filename = $file->getFilename();
+      if ($file->getExtension() !== 'php'
+        || !str_ends_with($filename, 'Test.php')) {
         continue;
       }
       $source = file_get_contents($file->getPathname());
       if (!preg_match('/^namespace ([^;]+);/m', $source, $match)) {
-        $problems[] = $file->getFilename() . ': no namespace declaration';
+        $problems[] = $filename . ': no namespace declaration';
         continue;
       }
       $namespace = $match[1];
       if (!str_starts_with($namespace, $expectedRoot)) {
-        $problems[] = $file->getFilename() . ": root '$namespace'";
+        $problems[] = $filename . ": root '$namespace'";
         continue;
       }
       $relative = substr(
         dirname($file->getPathname()),
         strlen($testsDir) + 1
       );
-      $expectedNamespace = $expectedRoot . ($relative === '' ? '' : '\\' . str_replace('/', '\\', $relative));
+      $sub = $relative === '' ? '' : '\\' . str_replace('/', '\\', $relative);
+      $expectedNamespace = $expectedRoot . $sub;
       if ($namespace !== $expectedNamespace) {
-        $problems[] = $file->getFilename() . ": '$namespace' != '$expectedNamespace' (path)";
+        $problems[] = $filename
+          . ": '$namespace' != '$expectedNamespace' (path)";
       }
     }
 
-    $this->assertSame([], $problems, 'Test namespaces must use the core-standard root and mirror file paths.');
+    $this->assertSame(
+      [],
+      $problems,
+      'Test namespaces must use the core-standard root and mirror file paths.'
+    );
   }
 
 }
