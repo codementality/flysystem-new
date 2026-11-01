@@ -175,6 +175,12 @@ and `X2FormatReplayTest.php`.
 
 - PHPUnit 11 attributes throughout: `#[Group('flysystem')]` and
   `#[CoversNothing]` on every test class.
+- Test namespaces mirror the directory path under `tests/src/`
+  exactly — a guard test (`TestNamespaceConventionTest`) enforces
+  it; drift fails the build.
+- Unit tests that touch `Settings` must reset it in `tearDown()`
+  (`new Settings([])`, plus `\Drupal::unsetContainer()` when a
+  container had been set).
 - Kernel tests: `#[RunTestsInSeparateProcesses]`; bindings are
   injected with `$this->setSetting('flysystem', [...])` in
   `setUp()` — KernelTestBase has **no** `$settings` property;
