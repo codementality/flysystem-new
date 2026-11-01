@@ -16,19 +16,20 @@ use Psr\Log\LoggerInterface;
 /**
  * Turns a scheme into a working filesystem operator, or into nothing.
  *
- * The full foundation pipeline in one call: resolve the scheme through the
- * binding resolver (which validates the touched scheme lazily), ask the
- * resolved adapter service to build its operator, and memoize the result
- * for the request under the definition's identity checksum. A scheme
- * that resolves to core-native (unbound or disabled) yields NULL and
- * builds nothing — that is what keeps unbound schemes untouched.
+ * The full foundation pipeline in one call: resolve the scheme through
+ * the binding resolver (which validates the touched scheme lazily), let
+ * the adapter plugin manager build the resolved plugin with the merged
+ * configuration, assemble the operator around it, and memoize the
+ * result for the request under the definition's identity checksum. A
+ * scheme that resolves to core-native (unbound or disabled) yields NULL
+ * and builds nothing — that is what keeps unbound schemes untouched.
  *
- * Path posture is decided by the local-storage feature, never by plugin
- * names: local bindings get the library's default traversal behavior
- * (interior '..' resolves within the bound root); anything else is built
- * strict (interior '..' rejected outright). The posture rides to the
- * plugin inside the merged configuration under the library's own reserved
- * key, which adapter plugins forward to their operator.
+ * Path posture is decided by the local-storage feature, never by
+ * plugin names: local bindings get the library's default traversal
+ * behavior (interior '..' resolves within the bound root); anything
+ * else is built strict (interior '..' rejected outright). The posture
+ * rides to the plugin inside the merged configuration under the
+ * library's own reserved key.
  */
 final class OperatorFactory {
 
@@ -46,8 +47,8 @@ final class OperatorFactory {
    *
    * @param \Drupal\flysystem\Resolution\BindingResolver $resolver
    *   The binding resolver supplying (and validating) definitions.
-   * @param \Drupal\flysystem\Adapter\FlysystemAdapterManager $pluginManager
-   *   The adapter manager handing out adapter services.
+   * @param \Drupal\flysystem\Adapter\FlysystemAdapterManager $adapterManager
+   *   The adapter plugin manager building plugins on demand.
    * @param callable $isLocalMode
    *   Predicate answering whether a plugin id serves local storage —
    *   built in production from the plugin's declared features.
@@ -58,7 +59,7 @@ final class OperatorFactory {
    */
   public function __construct(
     protected readonly BindingResolver $resolver,
-    protected readonly FlysystemAdapterManager $pluginManager,
+    protected readonly FlysystemAdapterManager $adapterManager,
     callable $isLocalMode,
     protected readonly LoggerInterface $logger,
   ) {
@@ -107,17 +108,21 @@ final class OperatorFactory {
       'config' => $config,
     ]);
     if (!isset($this->operators[$key])) {
-      $adapter = $this->pluginManager->createInstance($plugin_id);
+      // The plugin factory builds the adapter; this module never
+      // calls new on an adapter class. The merged configuration flows
+      // into the plugin constructor.
+      $adapter = $this->adapterManager->createInstance($plugin_id, $config);
       if (!$adapter->isAvailable()) {
         $exception = new FlysystemPackageMissingException($plugin_id);
         $this->logger->error($exception->getMessage(), ['scheme' => $scheme, 'link' => NULL]);
         throw $exception;
       }
-      // One assembly path for every backend: the adapter service builds
-      // the league adapter object; the operator and its operation
-      // defaults are composed here from the merged configuration.
+      // One assembly path for every backend: the adapter plugin
+      // produces the league adapter object; the operator and its
+      // operation defaults are composed here from the merged
+      // configuration.
       $this->operators[$key] = new Filesystem(
-        $adapter->adapter($config),
+        $adapter->adapter(),
         $this->filesystemOptions($config),
       );
     }

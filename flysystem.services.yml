@@ -1,23 +1,16 @@
 # Factory-layer services only. This module contributes ZERO services
 # tagged 'stream_wrapper' — enforced by tests/src/Unit contract tests.
 #
-# Adapters are container services carrying a 'flysystem.adapter' tag with
-# a driver name; a compiler pass collects the tags at build time. Adding
-# a backend is a tagged service — four lines — contributed here or by any
-# module, through the identical rail.
+# Adapters are plugins, discovered by the adapter manager through the
+# Drupal Plugin API: any module ships a backend with one attributed
+# class in its Plugin/FlysystemAdapter directory. The same module
+# shipping a backend is the only thing that makes it exist.
 services:
-  # The adapter manager: presents the tagged-service definitions and
-  # hands out the container-built adapter for a driver.
+  # The adapter plugin manager: attribute discovery, cached definitions,
+  # info-hook alteration, factory-built instances.
   flysystem.adapter_manager:
     class: Drupal\flysystem\Adapter\FlysystemAdapterManager
-    arguments: [ [], '@service_container', '@module_handler' ]
-
-  # The module's built-in local backend, registered like any adapter.
-  flysystem.adapter.local:
-    class: Drupal\flysystem\Adapter\Local
-    arguments: ['%app.root%']
-    tags:
-      - { name: flysystem.adapter, driver: local, label: 'Local files' }
+    autowire: true
 
   # Answers plugin-locality questions from definition data alone.
   flysystem.feature_inspector:

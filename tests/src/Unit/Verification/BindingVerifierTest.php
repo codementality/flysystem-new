@@ -7,7 +7,7 @@ namespace Drupal\Tests\flysystem\Unit\Verification;
 use Psr\Log\LoggerInterface;
 use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
 use League\Flysystem\FilesystemAdapter;
-use Drupal\Component\Plugin\Exception\InvalidPluginException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\flysystem\Adapter\FlysystemAdapterBase;
 use Drupal\flysystem\Adapter\FlysystemAdapterManager;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
@@ -145,19 +145,31 @@ final class BindingVerifierTest extends TestCase {
     );
     $manager->method('createInstance')->willReturnCallback(
       function (string $id, array $configuration = []) use ($definitions) {
-        if (!isset($definitions[$id])) {
-          throw new InvalidPluginException($id);
-        }
-        if ($id === 'local') {
-          return new Local(
+        $definition = $definitions[$id] ?? NULL;
+        return match ($id) {
+          'local' => new Local(
             $this->webRoot,
             $configuration,
             $id,
-            $definitions[$id]
-          );
-        }
-        $class = $definitions[$id]['class'];
-        return new $class($configuration, $id, $definitions[$id]);
+            $definition
+          ),
+          'in_memory' => new InMemory(
+            $configuration,
+            $id,
+            $definition
+          ),
+          'absent_backend' => new AbsentBackendFixture(
+            $configuration,
+            $id,
+            $definition
+          ),
+          'remote_like' => new RemoteLikeFixture(
+            $configuration,
+            $id,
+            $definition
+          ),
+          default => throw new PluginNotFoundException($id),
+        };
       }
     );
     return $manager;
