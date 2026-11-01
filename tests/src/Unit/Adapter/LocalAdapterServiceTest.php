@@ -103,7 +103,7 @@ final class LocalAdapterServiceTest extends TestCase {
   }
 
   /**
-   * isAvailable reflects the vendored package, honestly.
+   * The availability answer reflects the vendored package, honestly.
    */
   public function testIsAvailableReflectsVendoredPackage(): void {
     self::assertTrue(
@@ -129,7 +129,7 @@ final class LocalAdapterServiceTest extends TestCase {
   }
 
   /**
-   * '..' in configured roots collapses lexically, with no realpath.
+   * Two-dot segments in configured roots collapse lexically, no realpath.
    */
   public function testDotDotSegmentsCollapseLexically(): void {
     $operator = $this->operator(['root' => 'sites/default/../../private']);

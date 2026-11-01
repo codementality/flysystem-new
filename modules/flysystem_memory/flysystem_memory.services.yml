@@ -1,0 +1,8 @@
+# Registers the in-memory adapter through the identical tag rail any
+# contributed adapter uses — presence is the only policy difference:
+# this module is hidden and enabled only as a test dependency.
+services:
+  flysystem_memory.in_memory:
+    class: Drupal\flysystem_memory\Adapter\InMemory
+    tags:
+      - { name: flysystem.adapter, driver: in_memory, label: 'In-memory (testing only)' }

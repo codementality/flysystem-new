@@ -71,19 +71,21 @@ final class RegisterFlysystemAdaptersPassTest extends TestCase {
         'driver' => 'local',
         'label' => 'Local files',
         'service' => 'flysystem.adapter.local',
+        'class' => 'Drupal\any\AdapterClass',
       ],
       'test_remote' => [
         'driver' => 'test_remote',
         'label' => 'Test remote',
         'service' => 'my_module.adapter.remote',
+        'class' => 'Drupal\any\AdapterClass',
       ],
-    ], $definitions, 'Every tagged service contributes one definition keyed by driver, sorted, carrying its service id and label.');
+    ], $definitions, 'Every tagged service contributes one definition keyed by driver, sorted, carrying its service id, class, and label.');
   }
 
   /**
    * Verifies multiple tags on one service each become a definition.
    */
-  public function testMultipleTagsOnOneServiceEachBecomeADefinition(): void {
+  public function testMultipleTagsEachBecomeDefinitions(): void {
     $container = $this->container([
       'my_module.adapter.dual' => [
         ['driver' => 'first', 'label' => 'First'],

@@ -12,7 +12,7 @@ namespace Drupal\flysystem\Definition;
  * verification API (which reports on configured bindings). It is NOT
  * used by adapter plugins and is not part of what adapter authors
  * implement — those authors implement FlysystemAdapterInterface
- * (buildFilesystem / isAvailable) and never compute identity keys.
+ * (adapter / isAvailable) and never compute identity keys.
  *
  * That is why the entry point is protected and nothing is static: the
  * checksum is internal machinery that reaches the outside world only
