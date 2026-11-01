@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Plugin;
+namespace Drupal\flysystem\Adapter;
 
 /**
  * Feature marker: this backend serves object keys on the local filesystem.

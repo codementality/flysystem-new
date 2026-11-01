@@ -1,15 +1,28 @@
 # Factory-layer services only. This module contributes ZERO services
 # tagged 'stream_wrapper' — enforced by tests/src/Unit contract tests.
+#
+# Adapters are container services carrying a 'flysystem.adapter' tag with
+# a driver name; a compiler pass collects the tags at build time. Adding
+# a backend is a tagged service — four lines — contributed here or by any
+# module, through the identical rail.
 services:
-  # The Flysystem adapter plugin manager.
-  plugin.manager.flysystem_adapter:
-    class: Drupal\flysystem\Plugin\FlysystemAdapterManager
-    arguments: ['@container.namespaces', '@cache.discovery', '@module_handler']
+  # The adapter manager: presents the tagged-service definitions and
+  # hands out the container-built adapter for a driver.
+  flysystem.adapter_manager:
+    class: Drupal\flysystem\Adapter\FlysystemAdapterManager
+    arguments: [ [], '@service_container', '@module_handler' ]
 
-  # Answers plugin-locality questions from discovery data alone.
+  # The module's built-in local backend, registered like any adapter.
+  flysystem.adapter.local:
+    class: Drupal\flysystem\Adapter\Local
+    arguments: ['%app.root%']
+    tags:
+      - { name: flysystem.adapter, driver: local, label: 'Local files' }
+
+  # Answers plugin-locality questions from definition data alone.
   flysystem.feature_inspector:
-    class: Drupal\flysystem\Verification\PluginFeatureInspector
-    arguments: ['@plugin.manager.flysystem_adapter']
+    class: Drupal\flysystem\Verification\AdapterFeatureInspector
+    arguments: ['@flysystem.adapter_manager']
 
   # The settings.php definition source.
   flysystem.settings_source:
@@ -28,7 +41,7 @@ services:
   # Builds and memoizes operators per scheme.
   flysystem.operator_factory:
     class: Drupal\flysystem\Factory\OperatorFactory
-    arguments: ['@flysystem.binding_resolver', '@plugin.manager.flysystem_adapter', '@flysystem.feature_inspector', '@logger.channel.flysystem']
+    arguments: ['@flysystem.binding_resolver', '@flysystem.adapter_manager', '@flysystem.feature_inspector', '@logger.channel.flysystem']
 
   # The verification surface consumed by tests now and tooling later.
   flysystem.binding_verifier:

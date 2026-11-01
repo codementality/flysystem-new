@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Verification;
 
-use Drupal\flysystem\Plugin\FlysystemAdapterManager;
-use Drupal\flysystem\Plugin\LocalStorageInterface;
+use Drupal\flysystem\Adapter\FlysystemAdapterManager;
+use Drupal\flysystem\Adapter\LocalStorageInterface;
 
 /**
  * Answers, from discovery data alone, whether a plugin serves local storage.
@@ -19,16 +19,16 @@ use Drupal\flysystem\Plugin\LocalStorageInterface;
  * execution. An unknown plugin id answers NULL, which the consumer
  * reports as its typed unknown-plugin failure.
  */
-final class PluginFeatureInspector {
+final class AdapterFeatureInspector {
 
   /**
    * Constructs the inspector.
    *
-   * @param \Drupal\flysystem\Plugin\FlysystemAdapterManager $pluginManager
-   *   The adapter plugin manager whose definitions are consulted.
+   * @param \Drupal\flysystem\Adapter\FlysystemAdapterManager $adapterManager
+   *   The adapter manager whose definitions are consulted.
    */
   public function __construct(
-    protected readonly FlysystemAdapterManager $pluginManager,
+    protected readonly FlysystemAdapterManager $adapterManager,
   ) {
   }
 
@@ -45,7 +45,7 @@ final class PluginFeatureInspector {
    *   The answer as described.
    */
   public function __invoke(string $pluginId): ?bool {
-    $definition = $this->pluginManager->getDefinition($pluginId, FALSE);
+    $definition = $this->adapterManager->getDefinition($pluginId, FALSE);
     if ($definition === NULL) {
       return NULL;
     }

@@ -65,6 +65,9 @@ final class FlysystemAdapterManagerTest extends UnitTestCase {
         throw new \LogicException('Not needed for manager plumbing.');
       }
 
+      /**
+       * This plumbing stand-in is always usable.
+       */
       public function isAvailable(): bool {
         return TRUE;
       }

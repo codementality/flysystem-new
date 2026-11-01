@@ -8,6 +8,7 @@ use Drupal\flysystem\Adapter\FlysystemAdapterManager;
 use Drupal\KernelTests\KernelTestBase;
 use League\Flysystem\FilesystemOperator;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Proves the contrib adapter rail end to end through real wiring.
@@ -22,6 +23,7 @@ use PHPUnit\Framework\Attributes\Group;
  * property of the wiring, not a promise in documentation.
  */
 #[Group('flysystem')]
+#[RunTestsInSeparateProcesses]
 final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
 
   /**
@@ -30,15 +32,15 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
   protected static $modules = ['flysystem', 'flysystem_adapter_test'];
 
   /**
-   * A scheme bound to the contributed driver, settings-carried like any.
-   *
-   * @var array
+   * {@inheritdoc}
    */
-  protected $settings = [
-    'flysystem' => [
+  protected function setUp(): void {
+    parent::setUp();
+    // A scheme bound to the contributed driver, settings-carried like any.
+    $this->setSetting('flysystem', [
       'ttest' => ['driver' => 'test_adapter'],
-    ],
-  ];
+    ]);
+  }
 
   /**
    * The contributed driver appears in the manager's definitions.
@@ -51,6 +53,7 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
     $definitions = $manager->getDefinitions();
     self::assertArrayHasKey('test_adapter', $definitions, 'A tagged service from another module becomes a driver definition through the same rail the first-party adapters ride.');
     self::assertArrayHasKey('local', $definitions, 'The first-party local adapter is registered through the identical tag mechanism.');
+    self::assertArrayNotHasKey('in_memory', $definitions, 'A driver the disabled testing submodule would contribute is simply absent — presence of a module, not a branch in code, decides what exists.');
     self::assertSame(
       'flysystem_adapter_test.memory_backed',
       $definitions['test_adapter']['service'],

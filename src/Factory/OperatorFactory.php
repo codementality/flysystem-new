@@ -6,9 +6,11 @@ namespace Drupal\flysystem\Factory;
 
 use Drupal\flysystem\Definition\DefinitionChecksumTrait;
 use Drupal\flysystem\Exception\FlysystemPackageMissingException;
-use Drupal\flysystem\Plugin\FlysystemAdapterManager;
+use Drupal\flysystem\Adapter\FlysystemAdapterManager;
 use Drupal\flysystem\Resolution\BindingResolver;
+use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
+use League\Flysystem\Visibility;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -16,8 +18,8 @@ use Psr\Log\LoggerInterface;
  *
  * The full foundation pipeline in one call: resolve the scheme through the
  * binding resolver (which validates the touched scheme lazily), ask the
- * resolved plugin to build its operator, and memoize the result for the
- * rest of the request under the definition's identity checksum. A scheme
+ * resolved adapter service to build its operator, and memoize the result
+ * for the request under the definition's identity checksum. A scheme
  * that resolves to core-native (unbound or disabled) yields NULL and
  * builds nothing — that is what keeps unbound schemes untouched.
  *
@@ -44,8 +46,8 @@ final class OperatorFactory {
    *
    * @param \Drupal\flysystem\Resolution\BindingResolver $resolver
    *   The binding resolver supplying (and validating) definitions.
-   * @param \Drupal\flysystem\Plugin\FlysystemAdapterManager $pluginManager
-   *   The adapter plugin manager instantiating plugins.
+   * @param \Drupal\flysystem\Adapter\FlysystemAdapterManager $pluginManager
+   *   The adapter manager handing out adapter services.
    * @param callable $isLocalMode
    *   Predicate answering whether a plugin id serves local storage —
    *   built in production from the plugin's declared features.
@@ -105,15 +107,46 @@ final class OperatorFactory {
       'config' => $config,
     ]);
     if (!isset($this->operators[$key])) {
-      $plugin = $this->pluginManager->createInstance($plugin_id, $config);
-      if (!$plugin->isAvailable()) {
+      $adapter = $this->pluginManager->createInstance($plugin_id);
+      if (!$adapter->isAvailable()) {
         $exception = new FlysystemPackageMissingException($plugin_id);
         $this->logger->error($exception->getMessage(), ['scheme' => $scheme, 'link' => NULL]);
         throw $exception;
       }
-      $this->operators[$key] = $plugin->buildFilesystem($config);
+      // One assembly path for every backend: the adapter service builds
+      // the league adapter object; the operator and its operation
+      // defaults are composed here from the merged configuration.
+      $this->operators[$key] = new Filesystem(
+        $adapter->adapter($config),
+        $this->filesystemOptions($config),
+      );
     }
     return $this->operators[$key];
+  }
+
+  /**
+   * Operator-level defaults merged into every operation's config.
+   *
+   * Default visibility PUBLIC is what makes the file mode actually apply
+   * on writes (the library only chmods when visibility is present).
+   *
+   * @param array $config
+   *   The merged configuration, including the posture decision.
+   *
+   * @return array<string, mixed>
+   *   Default operation config for the operator.
+   */
+  private function filesystemOptions(array $config): array {
+    $options = ['visibility' => $config['visibility'] ?? Visibility::PUBLIC];
+    if (isset($config['directory_visibility'])) {
+      $options['directory_visibility'] = (string) $config['directory_visibility'];
+    }
+    if (array_key_exists('allow_relative_path_traversal', $config)) {
+      // The posture decision rides in the merged configuration under the
+      // library's own key, forwarded untouched to the operator.
+      $options['allow_relative_path_traversal'] = (bool) $config['allow_relative_path_traversal'];
+    }
+    return $options;
   }
 
 }

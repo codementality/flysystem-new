@@ -5,29 +5,26 @@ declare(strict_types=1);
 namespace Drupal\Tests\flysystem\Unit\Factory;
 
 use Psr\Log\LoggerInterface;
-use Drupal\Component\Plugin\Exception\PluginNotFoundException;
-use Drupal\Component\Plugin\Discovery\DiscoveryInterface;
+use Drupal\Core\DependencyInjection\Container;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\flysystem\Adapter\Local;
+use Drupal\flysystem\Adapter\FlysystemAdapterInterface;
+use Drupal\flysystem\Adapter\FlysystemAdapterManager;
+use Drupal\flysystem\Adapter\LocalStorageInterface;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
 use Drupal\flysystem\Exception\FlysystemPackageMissingException;
 use Drupal\flysystem\Exception\UnknownAdapterPluginException;
 use Drupal\flysystem\Factory\OperatorFactory;
-use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
-use Drupal\flysystem\Plugin\FlysystemAdapterBase;
-use Drupal\flysystem\Plugin\FlysystemAdapterInterface;
-use Drupal\flysystem\Plugin\FlysystemAdapterManager;
-use Drupal\flysystem\Plugin\LocalStorageInterface;
 use Drupal\flysystem\Resolution\BindingResolver;
 use Drupal\flysystem\Validation\SettingsValidator;
 use League\Flysystem\Filesystem;
+use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
 use League\Flysystem\PathTraversalDetected;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Tests for the operator factory: resolve, posture, build, memoize.
@@ -76,22 +73,12 @@ final class OperatorFactoryTest extends TestCase {
     $this->tempRoot = sys_get_temp_dir() . '/flysystem-m108-' . getmypid();
     $this->webRoot = $this->tempRoot . '/web';
     mkdir($this->webRoot, 0777, TRUE);
-    // The local adapter receives the app root through the container, exactly
-    // as production wires it; a mock stands in for that one parameter.
-    $container = $this->createMock(ContainerInterface::class);
-    $container
-      ->method('getParameter')
-      ->with('app.root')
-      ->willReturn($this->webRoot);
-    \Drupal::setContainer($container);
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    // Leave no test-specific container behind for sibling tests.
-    \Drupal::setContainer($this->createMock(ContainerInterface::class));
     exec('rm -rf ' . escapeshellarg($this->tempRoot));
     parent::tearDown();
   }
@@ -138,86 +125,38 @@ final class OperatorFactoryTest extends TestCase {
   }
 
   /**
-   * A manager whose discovery reports the real local plugin and fixtures.
+   * The manager as production hands it out: definitions and services.
    */
   private function manager(): FlysystemAdapterManager {
-    $definitions = [
-      'local' => [
-        'id' => 'local',
-        'class' => Local::class,
+    $container = new Container();
+    $container->set('test.adapter.local', new Local($this->webRoot));
+    $container->set('test.adapter.remote_fixture', new RemotePostureFixture());
+    $container->set('test.adapter.unavailable_fixture', new UnavailableFixture());
+
+    return new FlysystemAdapterManager(
+      [
+        'local' => [
+          'driver' => 'local',
+          'label' => 'Local files',
+          'service' => 'test.adapter.local',
+          'class' => Local::class,
+        ],
+        'remote_fixture' => [
+          'driver' => 'remote_fixture',
+          'label' => 'Remote fixture',
+          'service' => 'test.adapter.remote_fixture',
+          'class' => RemotePostureFixture::class,
+        ],
+        'unavailable_fixture' => [
+          'driver' => 'unavailable_fixture',
+          'label' => 'Unavailable fixture',
+          'service' => 'test.adapter.unavailable_fixture',
+          'class' => UnavailableFixture::class,
+        ],
       ],
-      'remote_fixture' => [
-        'id' => 'remote_fixture',
-        'class' => RemotePostureFixture::class,
-      ],
-      'unavailable_fixture' => [
-        'id' => 'unavailable_fixture',
-        'class' => UnavailableFixture::class,
-      ],
-    ];
-    $manager = new FlysystemAdapterManager(
-      new \ArrayObject(),
-      $this->createMock(CacheBackendInterface::class),
+      $container,
       $this->createMock(ModuleHandlerInterface::class),
     );
-    $discovery = new class ($definitions) implements DiscoveryInterface {
-
-      public function __construct(private array $definitions) {
-      }
-
-      /**
-       * Returns the fixture definitions.
-       *
-       * @return array<string, array<string, string>>
-       *   Definitions keyed by plugin id.
-       */
-      public function getDefinitions() {
-        return $this->definitions;
-      }
-
-      /**
-       * Returns one fixture definition by id.
-       *
-       * @param string $plugin_id
-       *   The plugin id.
-       * @param bool $return_empty
-       *   TRUE to return NULL for unknown ids instead of throwing.
-       *
-       * @return array<string, string>|null
-       *   The definition, or NULL when allowed.
-       */
-      public function getDefinition($plugin_id, $return_empty = FALSE) {
-        if (isset($this->definitions[$plugin_id])) {
-          return $this->definitions[$plugin_id];
-        }
-        if ($return_empty) {
-          return NULL;
-        }
-        throw new PluginNotFoundException($plugin_id);
-      }
-
-      /**
-       * Whether the fixture holds a definition.
-       *
-       * @param string $plugin_id
-       *   The plugin id.
-       *
-       * @return bool
-       *   TRUE when defined.
-       */
-      public function hasDefinition($plugin_id) {
-        return isset($this->definitions[$plugin_id]);
-      }
-
-    };
-    $reflection = new \ReflectionObject($manager);
-    while (!$reflection->hasProperty('discovery')) {
-      $reflection = $reflection->getParentClass();
-    }
-    $property = $reflection->getProperty('discovery');
-    $property->setAccessible(TRUE);
-    $property->setValue($manager, $discovery);
-    return $manager;
   }
 
   /**
@@ -410,8 +349,10 @@ final class OperatorFactoryTest extends TestCase {
    * Builds a remote-posture operator the way the factory merges it.
    */
   private function remoteOperator(): FilesystemOperator {
-    $plugin = new RemotePostureFixture([], 'remote_fixture', []);
-    return $plugin->buildFilesystem(['allow_relative_path_traversal' => FALSE]);
+    return new Filesystem(
+      (new RemotePostureFixture())->adapter([]),
+      ['allow_relative_path_traversal' => FALSE],
+    );
   }
 
 }
@@ -419,20 +360,17 @@ final class OperatorFactoryTest extends TestCase {
 /**
  * A remote-style fixture backend honoring the posture merge key.
  *
- * Stands in for the object-store adapters later milestones will ship as
- * plugins: in-memory storage (no filesystem semantics), strict traversal.
+ * Stands in for the object-store adapters later milestones will ship:
+ * in-memory storage (no filesystem semantics), strict traversal. The
+ * factory, not this class, assembles the operator and its defaults.
  */
-final class RemotePostureFixture extends FlysystemAdapterBase implements FlysystemAdapterInterface {
+final class RemotePostureFixture implements FlysystemAdapterInterface {
 
   /**
    * {@inheritdoc}
    */
-  public function buildFilesystem(array $config = []): FilesystemOperator {
-    $config += $this->getConfiguration();
-    return new Filesystem(
-      new InMemoryFilesystemAdapter(),
-      ['allow_relative_path_traversal' => $config['allow_relative_path_traversal'] ?? TRUE],
-    );
+  public function adapter(array $config): FilesystemAdapter {
+    return new InMemoryFilesystemAdapter();
   }
 
   /**
@@ -447,12 +385,12 @@ final class RemotePostureFixture extends FlysystemAdapterBase implements Flysyst
 /**
  * A fixture backend whose underlying package is not installed.
  */
-final class UnavailableFixture extends FlysystemAdapterBase implements FlysystemAdapterInterface {
+final class UnavailableFixture implements FlysystemAdapterInterface {
 
   /**
    * {@inheritdoc}
    */
-  public function buildFilesystem(array $config = []): FilesystemOperator {
+  public function adapter(array $config): FilesystemAdapter {
     throw new \LogicException('Unreachable in tests: the availability gate must stop first.');
   }
 
