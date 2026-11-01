@@ -31,10 +31,18 @@ services:
     class: Drupal\flysystem\Resolution\BindingResolver
     arguments: [ [ '@flysystem.settings_source' ], '@flysystem.binding_validator' ]
 
-  # Builds and memoizes operators per scheme.
+  # The assembly seam: composes league operators from adapter objects,
+  # with the library's own config keys and replaceable collaborators.
+  # The public-visibility default is what makes file modes actually
+  # apply on writes (the library only chmods when visibility is set).
+  flysystem.filesystem_builder:
+    class: Drupal\flysystem\Factory\FilesystemBuilder
+    arguments: [~, { visibility: 'public' } ]
+
+  # Resolves, builds, and memoizes operators per scheme.
   flysystem.operator_factory:
     class: Drupal\flysystem\Factory\OperatorFactory
-    arguments: ['@flysystem.binding_resolver', '@flysystem.adapter_manager', '@flysystem.feature_inspector', '@logger.channel.flysystem']
+    arguments: ['@flysystem.binding_resolver', '@flysystem.adapter_manager', '@flysystem.filesystem_builder', '@flysystem.feature_inspector', '@logger.channel.flysystem']
 
   # The verification surface consumed by tests now and tooling later.
   flysystem.binding_verifier:

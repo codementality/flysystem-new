@@ -63,9 +63,9 @@ final class FilesystemBuilderTest extends TestCase {
    */
   public function testPostureKeyDrivesTheLibraryNormalizer(): void {
     $adapter = new InMemoryFilesystemAdapter();
-    $adapter->write('deep/target.txt', 'v');
 
     $permissive = $this->builder()->build($adapter, ['allow_relative_path_traversal' => TRUE]);
+    $permissive->write('deep/target.txt', 'v');
     self::assertSame(
       'v',
       $permissive->read('deep/../deep/target.txt'),

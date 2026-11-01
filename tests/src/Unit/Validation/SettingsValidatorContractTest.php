@@ -447,4 +447,15 @@ final class SettingsValidatorContractTest extends TestCase {
     self::validator()->validateScheme('private', $layer);
   }
 
+  /**
+   * The scheme error must advertise the grammar the code enforces.
+   */
+  public function testSchemeErrorMessageMatchesTheEnforcedPattern(): void {
+    $message = (new InvalidSchemeNameException('bad_name'))->getMessage();
+    self::assertStringContainsString(
+      SettingsValidator::SCHEME_PATTERN,
+      $message,
+      'A typed error that names a grammar the validator does not actually enforce would misdirect every site builder reading it.'
+    );
+  }
 }

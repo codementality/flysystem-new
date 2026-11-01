@@ -34,10 +34,10 @@ final class LocalDriverGraphTest extends KernelTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
-    $this->swapScheme = 'graph_swap';
+    $this->swapScheme = 'graph-swap';
     $this->setSetting('flysystem', [
-      'graph_swap' => ['driver' => 'local', 'config' => ['root' => 'graph-local']],
-      'graph_ghost' => ['driver' => 'ghost_driver'],
+      'graph-swap' => ['driver' => 'local', 'config' => ['root' => 'graph-local']],
+      'graph-ghost' => ['driver' => 'ghost_driver'],
     ]);
   }
 

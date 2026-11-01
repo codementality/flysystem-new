@@ -33,10 +33,10 @@ final class InMemoryDriverGraphTest extends KernelTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
-    $this->swapScheme = 'graph_swap';
+    $this->swapScheme = 'graph-swap';
     $this->setSetting('flysystem', [
-      'graph_swap' => ['driver' => 'in_memory'],
-      'graph_ghost' => ['driver' => 'ghost_driver'],
+      'graph-swap' => ['driver' => 'in_memory'],
+      'graph-ghost' => ['driver' => 'ghost_driver'],
     ]);
   }
 

@@ -34,10 +34,10 @@ final class ContribFixtureDriverGraphTest extends KernelTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
-    $this->swapScheme = 'graph_swap';
+    $this->swapScheme = 'graph-swap';
     $this->setSetting('flysystem', [
-      'graph_swap' => ['driver' => 'test_adapter'],
-      'graph_ghost' => ['driver' => 'ghost_driver'],
+      'graph-swap' => ['driver' => 'test_adapter'],
+      'graph-ghost' => ['driver' => 'ghost_driver'],
     ]);
   }
 

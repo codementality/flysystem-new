@@ -8,9 +8,7 @@ use Drupal\flysystem\Definition\DefinitionChecksumTrait;
 use Drupal\flysystem\Exception\FlysystemPackageMissingException;
 use Drupal\flysystem\Adapter\FlysystemAdapterManager;
 use Drupal\flysystem\Resolution\BindingResolver;
-use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
-use League\Flysystem\Visibility;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -19,10 +17,10 @@ use Psr\Log\LoggerInterface;
  * The full foundation pipeline in one call: resolve the scheme through
  * the binding resolver (which validates the touched scheme lazily), let
  * the adapter plugin manager build the resolved plugin with the merged
- * configuration, assemble the operator around it, and memoize the
- * result for the request under the definition's identity checksum. A
- * scheme that resolves to core-native (unbound or disabled) yields NULL
- * and builds nothing — that is what keeps unbound schemes untouched.
+ * configuration, hand the produced adapter object to the filesystem
+ * builder, and memoize the resulting operator for the request under the
+ * definition's identity checksum. A scheme that resolves to core-native
+ * (unbound or disabled) yields NULL and builds nothing — that is what keeps unbound schemes untouched.
  *
  * Path posture is decided by the local-storage feature, never by
  * plugin names: local bindings get the library's default traversal
@@ -49,6 +47,8 @@ final class OperatorFactory {
    *   The binding resolver supplying (and validating) definitions.
    * @param \Drupal\flysystem\Adapter\FlysystemAdapterManager $adapterManager
    *   The adapter plugin manager building plugins on demand.
+   * @param \Drupal\flysystem\Factory\FilesystemBuilder $builder
+   *   The seam that composes operators from adapter objects.
    * @param callable $isLocalMode
    *   Predicate answering whether a plugin id serves local storage —
    *   built in production from the plugin's declared features.
@@ -60,6 +60,7 @@ final class OperatorFactory {
   public function __construct(
     protected readonly BindingResolver $resolver,
     protected readonly FlysystemAdapterManager $adapterManager,
+    protected readonly FilesystemBuilder $builder,
     callable $isLocalMode,
     protected readonly LoggerInterface $logger,
   ) {
@@ -118,40 +119,13 @@ final class OperatorFactory {
         throw $exception;
       }
       // One assembly path for every backend: the adapter plugin
-      // produces the league adapter object; the operator and its
-      // operation defaults are composed here from the merged
-      // configuration.
-      $this->operators[$key] = new Filesystem(
-        $adapter->adapter(),
-        $this->filesystemOptions($config),
-      );
+      // produces the league adapter object; the filesystem builder
+      // — the module's only Filesystem construction site — composes
+      // the operator from it and the merged configuration.
+      $this->operators[$key] = $this->builder->build($adapter->adapter(), $config);
     }
     return $this->operators[$key];
   }
 
-  /**
-   * Operator-level defaults merged into every operation's config.
-   *
-   * Default visibility PUBLIC is what makes the file mode actually apply
-   * on writes (the library only chmods when visibility is present).
-   *
-   * @param array $config
-   *   The merged configuration, including the posture decision.
-   *
-   * @return array<string, mixed>
-   *   Default operation config for the operator.
-   */
-  private function filesystemOptions(array $config): array {
-    $options = ['visibility' => $config['visibility'] ?? Visibility::PUBLIC];
-    if (isset($config['directory_visibility'])) {
-      $options['directory_visibility'] = (string) $config['directory_visibility'];
-    }
-    if (array_key_exists('allow_relative_path_traversal', $config)) {
-      // The posture decision rides in the merged configuration under the
-      // library's own key, forwarded untouched to the operator.
-      $options['allow_relative_path_traversal'] = (bool) $config['allow_relative_path_traversal'];
-    }
-    return $options;
-  }
 
 }
