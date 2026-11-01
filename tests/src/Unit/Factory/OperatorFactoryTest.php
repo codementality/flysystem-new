@@ -13,6 +13,7 @@ use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
 use Drupal\flysystem\Verification\AdapterFeatureInspector;
 use Drupal\flysystem\Exception\FlysystemPackageMissingException;
 use Drupal\flysystem\Exception\UnknownAdapterPluginException;
+use Drupal\flysystem\Factory\FilesystemBuilder;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\Resolution\BindingResolver;
 use Drupal\flysystem\Validation\SettingsValidator;
@@ -96,7 +97,13 @@ final class OperatorFactoryTest extends TestCase {
     $isLocal = new AdapterFeatureInspector($manager);
     $validator = new SettingsValidator($this->webRoot, $isLocal);
     $resolver = new BindingResolver([new ArrayDefinitionSource($settings_layer)], $validator);
-    return new OperatorFactory($resolver, $manager, $isLocal, $this->createMock(LoggerInterface::class));
+    return new OperatorFactory(
+      $resolver,
+      $manager,
+      new FilesystemBuilder(),
+      $isLocal,
+      $this->createMock(LoggerInterface::class)
+    );
   }
 
   /**

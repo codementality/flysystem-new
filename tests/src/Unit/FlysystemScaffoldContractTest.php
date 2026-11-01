@@ -46,6 +46,28 @@ final class FlysystemScaffoldContractTest extends TestCase {
   }
 
   /**
+   * The filesystem builder exists and branches on no backend.
+   *
+   * The structural half of the adapter-agnostic promise: the builder
+   * composes operators from adapter objects and configuration only —
+   * its source must not contain a single quoted backend name, because
+   * a branch on a driver word anywhere in this module would silently
+   * unmake the one-word-swap property the kernel suite proves.
+   */
+  public function testBuilderCarriesNoBackendBranch(): void {
+    $path = $this->moduleRoot . '/src/Factory/FilesystemBuilder.php';
+    self::assertFileExists($path, 'The filesystem service graph needs its builder service on disk.');
+    $source = (string) file_get_contents($path);
+    foreach (['local', 'in_memory', 'test_adapter', 'sftp_v3', 'aws_s3_v3'] as $backend) {
+      self::assertStringNotContainsString(
+        "'$backend'",
+        $source,
+        "The builder must not mention backend names in code — posture questions are answered by feature declarations, name checks are for humans."
+      );
+    }
+  }
+
+  /**
    * Verifies the info file declares a Drupal 11 module with the right name.
    */
   public function testInfoYmlDeclaresModuleIdentity(): void {

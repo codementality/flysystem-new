@@ -12,6 +12,7 @@ use Drupal\flysystem\Adapter\FlysystemAdapterBase;
 use Drupal\flysystem\Adapter\FlysystemAdapterManager;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
 use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
+use Drupal\flysystem\Factory\FilesystemBuilder;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\Resolution\BindingResolver;
 use Drupal\flysystem\Validation\SettingsValidator;
@@ -96,7 +97,13 @@ final class BindingVerifierTest extends TestCase {
     $validator = new SettingsValidator($this->webRoot, $inspector);
     $sourceObjects = array_map(static fn (array $layer): ArrayDefinitionSource => new ArrayDefinitionSource($layer), $sources);
     $resolver = new BindingResolver($sourceObjects, $validator);
-    $factory = new OperatorFactory($resolver, $manager, $inspector, $this->logger);
+    $factory = new OperatorFactory(
+      $resolver,
+      $manager,
+      new FilesystemBuilder(),
+      $inspector,
+      $this->logger
+    );
     return new BindingVerifier($resolver, $factory, $sourceObjects, $this->logger);
   }
 
