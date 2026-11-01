@@ -1,8 +1,12 @@
 checksumming
 chmodded
 chmods
+ftpexample
 mybackend
 pluggability
 sftpbackup
+tmem
+ttest
 unconfigured
+undotted
 yourmodule
