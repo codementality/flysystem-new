@@ -7,6 +7,7 @@ namespace Drupal\flysystem\Plugin\FlysystemAdapter;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\flysystem\Adapter\DrupalLocalFilesystemAdapter;
 use Drupal\flysystem\Adapter\FlysystemAdapterBase;
 use Drupal\flysystem\Adapter\LocalStorageInterface;
 use Drupal\flysystem\Attribute\FlysystemAdapter;
@@ -45,6 +46,13 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * leading '../' in a target throws through the operator — the root
  * escape refusal is the library's guarantee, engaged by routing every
  * operation through the operator, never an emulated escape.
+ *
+ * Directory modes: the library creates directories through mkdir(),
+ * which the process umask masks, and Flysystem's built-in permission
+ * defaults come from Laravel, not Drupal. The adapter object produced
+ * here is therefore the umask-corrected local adapter, which chmods
+ * directories at creation to the converter's declared mode; files and
+ * already-existing directories follow the library's paths unchanged.
  */
 #[FlysystemAdapter(
   id: 'local',
@@ -109,7 +117,7 @@ final class Local extends FlysystemAdapterBase implements LocalStorageInterface,
       }
       $resolved = LexicalPath::resolve($root, $this->appRoot);
 
-      $this->leagueAdapter = new LocalFilesystemAdapter(
+      $this->leagueAdapter = new DrupalLocalFilesystemAdapter(
         $resolved,
         $this->visibilityConverter(),
         \LOCK_EX,

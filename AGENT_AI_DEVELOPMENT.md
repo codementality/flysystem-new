@@ -132,7 +132,13 @@ README.md                    User-facing config guide.
    the process CWD; `..` in *configured roots* collapses lexically
    (`LexicalPath`); `..` attempting to *escape* a root throws
    through the operator. `realpath()` is never used (it breaks
-   not-yet-created roots and chases symlinks the OS owns).
+   not-yet-created roots and chases symlinks the OS owns). Drupal's
+   file **and** directory modes apply umask-independently: files via
+   the library's own chmod path, directories via the local plugin's
+   umask-corrected adapter (`DrupalLocalFilesystemAdapter`), which
+   chmods directories *as it creates them* and never rewrites ones
+   that already exist — Flysystem's built-in permission defaults are
+   Laravel's and are never relied on.
 10. **Test-only backends stay in hidden modules.** The in-memory
     adapter ships in `modules/flysystem_memory/`, a module sites
     never enable and UIs never list. Adapter presence is module
