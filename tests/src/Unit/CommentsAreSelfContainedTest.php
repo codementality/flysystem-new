@@ -115,10 +115,19 @@ final class CommentsAreSelfContainedTest extends TestCase {
         }
       }
     }
-    foreach (['flysystem.services.yml', 'flysystem.info.yml', 'composer.json', 'README.md', 'DEVELOPER_NOTES.md'] as $name) {
+    foreach (['flysystem.services.yml', 'flysystem.info.yml', 'composer.json'] as $name) {
       if (is_file($this->moduleRoot . '/' . $name)) {
         $files[] = $this->moduleRoot . '/' . $name;
       }
+    }
+    // Every shipped markdown file, wherever it lives: root documents
+    // plus the docs directory. New documentation is covered without
+    // anyone remembering to extend a list.
+    foreach (array_merge(
+      glob($this->moduleRoot . '/*.md') ?: [],
+      glob($this->moduleRoot . '/docs/*.md') ?: [],
+    ) as $path) {
+      $files[] = $path;
     }
     return $files;
   }
