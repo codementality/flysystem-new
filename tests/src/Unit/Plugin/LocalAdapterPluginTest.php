@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\flysystem\Unit\Plugin;
 
+use Drupal\Core\Site\Settings;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\flysystem\Adapter\FlysystemAdapterInterface;
 use Drupal\flysystem\Adapter\LocalStorageInterface;
@@ -62,7 +63,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    new \Drupal\Core\Site\Settings([]);
+    new Settings([]);
     chdir(sys_get_temp_dir());
     exec('rm -rf ' . escapeshellarg(dirname($this->appRoot)));
     parent::tearDown();
@@ -237,7 +238,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * Default writes land with the Drupal file mode, not league's.
    */
   public function testDefaultFileModeIsDrupalFileChmod(): void {
-    new \Drupal\Core\Site\Settings([]);
+    new Settings([]);
     $operator = $this->operator(['root' => 'files']);
     $operator->write('mode.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/mode.txt') & 0777;
@@ -248,7 +249,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * The file_chmod_file setting drives the public write mode.
    */
   public function testFileChmodFileSettingDrivesPublicMode(): void {
-    new \Drupal\Core\Site\Settings(['file_chmod_file' => 0660]);
+    new Settings(['file_chmod_file' => 0660]);
     $operator = $this->operator(['root' => 'files']);
     $operator->write('c.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/c.txt') & 0777;
@@ -259,7 +260,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * The 'permissions' config shape is accepted as an alias.
    */
   public function testLegacyPermissionsAliasAccepted(): void {
-    new \Drupal\Core\Site\Settings([]);
+    new Settings([]);
     $operator = $this->operator([
       'root' => 'files',
       'permissions' => [
@@ -276,7 +277,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * Link handling: disallowed by default (throws), skippable by config.
    */
   public function testLinkHandlingSkipVersusDisallow(): void {
-    new \Drupal\Core\Site\Settings([]);
+    new Settings([]);
     $files = $this->appRoot . '/links';
     mkdir($files, 0777, TRUE);
     file_put_contents($files . '/real.txt', 'real');

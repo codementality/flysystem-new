@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Drupal\Tests\flysystem\Unit\Factory;
 
 use Psr\Log\LoggerInterface;
-use Drupal\Component\Plugin\Exception\InvalidPluginException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\flysystem\Adapter\FlysystemAdapterBase;
-use Drupal\flysystem\Adapter\FlysystemAdapterInterface;
 use Drupal\flysystem\Adapter\FlysystemAdapterManager;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
 use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
@@ -158,14 +157,26 @@ final class OperatorFactoryTest extends TestCase {
     );
     $manager->method('createInstance')->willReturnCallback(
       function (string $id, array $configuration = []) use ($definitions) {
-        if (!isset($definitions[$id])) {
-          throw new InvalidPluginException($id);
-        }
-        if ($id === 'local') {
-          return new Local($this->webRoot, $configuration, $id, $definitions[$id]);
-        }
-        $class = $definitions[$id]['class'];
-        return new $class($configuration, $id, $definitions[$id]);
+        $definition = $definitions[$id] ?? NULL;
+        return match ($id) {
+          'local' => new Local(
+            $this->webRoot,
+            $configuration,
+            $id,
+            $definition
+          ),
+          'remote_fixture' => new RemotePostureFixture(
+            $configuration,
+            $id,
+            $definition
+          ),
+          'unavailable_fixture' => new UnavailableFixture(
+            $configuration,
+            $id,
+            $definition
+          ),
+          default => throw new PluginNotFoundException($id),
+        };
       }
     );
     return $manager;

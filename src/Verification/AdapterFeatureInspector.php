@@ -45,11 +45,11 @@ final class AdapterFeatureInspector {
    *   The answer as described.
    */
   public function __invoke(string $pluginId): ?bool {
-    $definition = $this->adapterManager->getDefinition($pluginId, FALSE);
-    if ($definition === NULL) {
+    if (!$this->adapterManager->hasDefinition($pluginId)) {
       return NULL;
     }
-    return is_subclass_of($definition['class'], LocalStorageInterface::class);
+    $definition = $this->adapterManager->getDefinition($pluginId);
+    return is_a((string) $definition['class'], LocalStorageInterface::class, TRUE);
   }
 
 }

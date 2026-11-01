@@ -4,46 +4,49 @@ declare(strict_types=1);
 
 namespace Drupal\flysystem\Adapter;
 
+use Drupal\Component\Plugin\PluginInspectionInterface;
 use League\Flysystem\FilesystemAdapter;
 
 /**
- * The adapter service contract: backends describe themselves by methods.
+ * The adapter plugin contract: backends describe themselves by methods.
  *
- * An adapter is a plain container service: any module registers one by
- * implementing this interface and declaring the service tagged
- * 'flysystem.adapter' with a driver name — four lines of YAML, the same
- * extension pattern core uses for its own tagged services. Container
- * construction means dependencies arrive injected; the manager never
- * builds anything itself.
+ * An adapter is a plugin: a class in the module's Plugin/FlysystemAdapter
+ * directory carrying the adapter attribute, discovered by the plugin
+ * API, cached, alterable through the info hook, and instantiated by the
+ * plugin factory with the binding's configuration already in its
+ * constructor. Nothing in this module builds adapters with new; the
+ * manager does, exactly the way Search API builds its datasource and
+ * backend plugins.
  *
- * The backend's one job is producing the league adapter object for a
- * given configuration array; wrapping it in a Filesystem operator (and
- * the operation defaults that go with it) is the factory's assembly, so
- * every backend shares one posture path. Feature questions join this
- * contract only where a real consumer needs them; methods for URL
- * generation and self-validation arrive with the work that calls them.
+ * The backend's one job is producing the league adapter object for the
+ * configuration it was created with; wrapping it in a Filesystem
+ * operator (and the operation defaults that go with it) is the
+ * factory's assembly, so every backend shares one posture path.
+ * Feature questions join this contract only where a real consumer
+ * needs them; methods for URL generation and self-validation arrive
+ * with the work that calls them.
  */
-interface FlysystemAdapterInterface {
+interface FlysystemAdapterInterface extends PluginInspectionInterface {
 
   /**
-   * Builds the league adapter object for this backend and configuration.
+   * Returns the league adapter object for this plugin's configuration.
    *
-   * @param array $config
-   *   Adapter configuration values, already merged and resolved by the
-   *   caller (definition config plus binding overrides). The backend
-   *   owns the meaning of every key it recognizes and ignores the rest.
+   * The configuration arrives through the plugin constructor —
+   * definition config plus binding overrides, merged and resolved by
+   * the caller — so this method takes no arguments. Implementations
+   * build the object once and return the same one on every call.
    *
    * @return \League\Flysystem\FilesystemAdapter
    *   The league adapter; callers wrap it in an operator and never use
    *   it raw, because traversal protection is enforced at the operator
    *   layer.
    */
-  public function adapter(array $config): FilesystemAdapter;
+  public function adapter(): FilesystemAdapter;
 
   /**
    * Whether this backend can work right now.
    *
-   * The service's own answer to "is the required package installed, is
+   * The plugin's own answer to "is the required package installed, is
    * the configuration usable". A FALSE result must be reportable as a
    * structured finding, never a fatal.
    */
