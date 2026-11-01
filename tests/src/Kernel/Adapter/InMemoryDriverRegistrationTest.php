@@ -5,20 +5,21 @@ declare(strict_types=1);
 namespace Drupal\Tests\flysystem\Kernel\Adapter;
 
 use Drupal\flysystem\Adapter\FlysystemAdapterManager;
+use Drupal\flysystem_memory\Plugin\FlysystemAdapter\InMemory;
 use Drupal\KernelTests\KernelTestBase;
 use League\Flysystem\FilesystemOperator;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The testing-only in-memory driver registers through the same rail.
+ * The testing-only in-memory adapter ships as a plugin like any other.
  *
  * When the hidden flysystem_memory submodule is present (test
- * dependency), its tagged service becomes the 'in_memory' driver and
- * the factory builds working operators for schemes bound to it — with
- * no disk touched, which is the point of a backend whose only role is
- * proving adapter-agnosticism. When the submodule is absent, the
- * driver simply does not exist and nothing references it.
+ * dependency), its attributed class is discovered as the 'in_memory'
+ * adapter and the factory builds working operators for schemes bound to
+ * it — with no disk touched, which is the point of a backend whose only
+ * role is proving adapter-agnosticism. When the submodule is absent,
+ * discovery never sees it and the adapter simply does not exist.
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
@@ -34,22 +35,27 @@ final class InMemoryDriverRegistrationTest extends KernelTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
-    // A scheme bound to the testing-only driver.
+    // A scheme bound to the testing-only adapter.
     $this->setSetting('flysystem', [
       'tmem' => ['driver' => 'in_memory'],
     ]);
   }
 
   /**
-   * Both first-party drivers are discovered, and memory works.
+   * Both first-party adapters are discovered, and memory works.
    */
   public function testInMemoryDriverRegisteredAndFunctional(): void {
     /** @var \Drupal\flysystem\Adapter\FlysystemAdapterManager $manager */
     $manager = $this->container->get('flysystem.adapter_manager');
     self::assertInstanceOf(FlysystemAdapterManager::class, $manager);
     $definitions = $manager->getDefinitions();
-    self::assertArrayHasKey('in_memory', $definitions, 'The hidden submodule contributes its driver through the same tag rail as the shipped one.');
+    self::assertArrayHasKey('in_memory', $definitions, 'The hidden submodule contributes its adapter through the identical plugin discovery rail as the shipped one.');
     self::assertArrayHasKey('local', $definitions);
+    self::assertInstanceOf(
+      InMemory::class,
+      $manager->createInstance('in_memory', []),
+      'The manager instantiates the shipped class through the plugin factory.'
+    );
 
     /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
     $factory = $this->container->get('flysystem.operator_factory');
