@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\flysystem\Unit\Adapter;
+namespace Drupal\Tests\flysystem\Unit\Plugin;
 
-use Drupal\Core\Site\Settings;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\flysystem\Adapter\FlysystemAdapterInterface;
-use Drupal\flysystem\Adapter\Local;
 use Drupal\flysystem\Adapter\LocalStorageInterface;
+use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
 use League\Flysystem\Filesystem;
 use League\Flysystem\PathTraversalDetected;
 use League\Flysystem\Visibility;
@@ -16,15 +16,17 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests the local adapter service: root handling and mode posture.
+ * Tests the local adapter plugin: root handling and mode posture.
  *
- * The adapter service now produces the league adapter object; the
- * operator wrapping (visibility defaults carrying the site's chmod
- * settings, the traversal posture the factory decides per adapter kind)
- * is assembled the same way the operator factory will assemble it, so
- * these are the same end-to-end guarantees the plugin contract shipped:
- * relative roots anchor to the app root (never the process CWD), '..'
- * segments collapse lexically (never realpath(), which would break
+ * The adapter plugin is created through the plugin system, so the
+ * binding's merged configuration arrives in its constructor and the
+ * league adapter object is produced once by adapter(). The operator
+ * wrapping (visibility defaults carrying the site's chmod settings, the
+ * traversal posture the factory decides per adapter kind) is assembled
+ * the same way the operator factory assembles it, so these are the same
+ * end-to-end guarantees the shipped plugin contract carries: relative
+ * roots anchor to the app root (never the process CWD), '..' segments
+ * collapse lexically (never realpath(), which would break
  * not-yet-created roots and chase symlinks the OS owns), nothing is
  * created at construction, and the Drupal mode defaults apply to
  * writes. A leading '../' in a target throws through the operator —
@@ -32,7 +34,7 @@ use PHPUnit\Framework\TestCase;
  */
 #[Group('flysystem')]
 #[CoversNothing]
-final class LocalAdapterServiceTest extends TestCase {
+final class LocalAdapterPluginTest extends TestCase {
 
   /**
    * Synthetic app root (webroot) all fixtures anchor against.
@@ -49,7 +51,7 @@ final class LocalAdapterServiceTest extends TestCase {
    */
   protected function setUp(): void {
     parent::setUp();
-    $base = sys_get_temp_dir() . '/flysystem-m2r02-' . getmypid();
+    $base = sys_get_temp_dir() . '/flysystem-local-plugin-' . getmypid();
     $this->appRoot = $base . '/web';
     $this->otherCwd = $base . '/elsewhere';
     mkdir($this->appRoot, 0777, TRUE);
@@ -60,17 +62,23 @@ final class LocalAdapterServiceTest extends TestCase {
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    new Settings([]);
+    new \Drupal\Core\Site\Settings([]);
     chdir(sys_get_temp_dir());
     exec('rm -rf ' . escapeshellarg(dirname($this->appRoot)));
     parent::tearDown();
   }
 
   /**
-   * Builds the adapter service directly (no container in unit tests).
+   * Builds the plugin the way the plugin factory would: config in.
    */
-  private function adapterService(): Local {
-    return new Local($this->appRoot);
+  private function plugin(array $config): Local {
+    $definition = [
+      'id' => 'local',
+      'class' => Local::class,
+      'label' => new TranslatableMarkup('Local files'),
+      'provider' => 'flysystem',
+    ];
+    return new Local($this->appRoot, $config, 'local', $definition);
   }
 
   /**
@@ -84,20 +92,21 @@ final class LocalAdapterServiceTest extends TestCase {
       $options['directory_visibility'] = (string) $config['directory_visibility'];
     }
     if (array_key_exists('allow_relative_path_traversal', $config)) {
-      $options['allow_relative_path_traversal'] = (bool) $config['allow_relative_path_traversal'];
+      $options['allow_relative_path_traversal'] =
+        (bool) $config['allow_relative_path_traversal'];
     }
-    return new Filesystem($this->adapterService()->adapter($config), $options);
+    return new Filesystem($this->plugin($config)->adapter(), $options);
   }
 
   /**
-   * The service implements the adapter contract and declares locality.
+   * The plugin implements the adapter contract and declares locality.
    */
   public function testImplementsContractAndLocalStorageFeature(): void {
-    $service = $this->adapterService();
-    self::assertInstanceOf(FlysystemAdapterInterface::class, $service);
+    $plugin = $this->plugin(['root' => 'files']);
+    self::assertInstanceOf(FlysystemAdapterInterface::class, $plugin);
     self::assertInstanceOf(
       LocalStorageInterface::class,
-      $service,
+      $plugin,
       'The local backend declares the local-storage feature so the wiring can answer the webroot-containment question from data.'
     );
   }
@@ -107,8 +116,8 @@ final class LocalAdapterServiceTest extends TestCase {
    */
   public function testIsAvailableReflectsVendoredPackage(): void {
     self::assertTrue(
-      $this->adapterService()->isAvailable(),
-      'league/flysystem-local is a runtime require — availability is TRUE and the service must say so.'
+      $this->plugin(['root' => 'files'])->isAvailable(),
+      'league/flysystem-local is a runtime require — availability is TRUE and the plugin must say so.'
     );
   }
 
@@ -228,29 +237,29 @@ final class LocalAdapterServiceTest extends TestCase {
    * Default writes land with the Drupal file mode, not league's.
    */
   public function testDefaultFileModeIsDrupalFileChmod(): void {
-    new Settings([]);
+    new \Drupal\Core\Site\Settings([]);
     $operator = $this->operator(['root' => 'files']);
     $operator->write('mode.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/mode.txt') & 0777;
-    self::assertSame(0664, $mode, 'Unconfigured writes carry the Drupal default file mode (0664), not league\'s 0644 — 2.x sites keep their permission expectations.');
+    self::assertSame(0664, $mode, 'Unconfigured writes carry the Drupal default file mode (0664), not league\'s 0644 — upgraded sites keep their permission expectations.');
   }
 
   /**
    * The file_chmod_file setting drives the public write mode.
    */
   public function testFileChmodFileSettingDrivesPublicMode(): void {
-    new Settings(['file_chmod_file' => 0660]);
+    new \Drupal\Core\Site\Settings(['file_chmod_file' => 0660]);
     $operator = $this->operator(['root' => 'files']);
     $operator->write('c.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/c.txt') & 0777;
-    self::assertSame(0660, $mode, 'The site file_chmod_file setting must drive the public-write mode, exactly as 2.x read it.');
+    self::assertSame(0660, $mode, 'The site file_chmod_file setting must drive the public-write mode, exactly as the earlier module generation read it.');
   }
 
   /**
-   * The 2.x 'permissions' config shape is accepted as an alias.
+   * The 'permissions' config shape is accepted as an alias.
    */
   public function testLegacyPermissionsAliasAccepted(): void {
-    new Settings([]);
+    new \Drupal\Core\Site\Settings([]);
     $operator = $this->operator([
       'root' => 'files',
       'permissions' => [
@@ -260,14 +269,14 @@ final class LocalAdapterServiceTest extends TestCase {
     ]);
     $operator->write('legacy.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/legacy.txt') & 0777;
-    self::assertSame(0666, $mode, 'A 2.x-style permissions map must work unchanged — the service-scope half of the backward-compatibility promise.');
+    self::assertSame(0666, $mode, 'A legacy permissions map must work unchanged — the plugin-scope half of the backward-compatibility promise.');
   }
 
   /**
    * Link handling: disallowed by default (throws), skippable by config.
    */
   public function testLinkHandlingSkipVersusDisallow(): void {
-    new Settings([]);
+    new \Drupal\Core\Site\Settings([]);
     $files = $this->appRoot . '/links';
     mkdir($files, 0777, TRUE);
     file_put_contents($files . '/real.txt', 'real');
@@ -291,6 +300,18 @@ final class LocalAdapterServiceTest extends TestCase {
     }
     self::assertNotContains('link.txt', $seen, 'link_handling: skip must omit symlinked entries from listings.');
     self::assertContains('real.txt', $seen, 'Regular entries are still listed when links are skipped.');
+  }
+
+  /**
+   * Configuration is read once: the same adapter object comes back twice.
+   */
+  public function testAdapterObjectIsBuiltOnceAndReused(): void {
+    $plugin = $this->plugin(['root' => 'files']);
+    self::assertSame(
+      $plugin->adapter(),
+      $plugin->adapter(),
+      'A plugin instance holds its configuration and produces its league adapter once — repeated calls must not rebuild it.'
+    );
   }
 
 }

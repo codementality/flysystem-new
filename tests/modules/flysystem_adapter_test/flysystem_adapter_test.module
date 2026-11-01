@@ -1,0 +1,23 @@
+<?php
+
+/**
+ * @file
+ * Hooks for the contributed-style adapter discovery fixture.
+ */
+
+declare(strict_types=1);
+
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+
+/**
+ * Implements hook_flysystem_adapter_info_alter().
+ *
+ * Proves the discovery output is alterable through the standard info
+ * hook — the plugin definitions the manager hands out are this
+ * module's edited copy. The test asserts the altered label arrives.
+ */
+function flysystem_adapter_test_flysystem_adapter_info_alter(array &$definitions): void {
+  if (isset($definitions['test_adapter'])) {
+    $definitions['test_adapter']['label'] = new TranslatableMarkup('Altered through the info hook');
+  }
+}

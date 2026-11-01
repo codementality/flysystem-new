@@ -7,18 +7,17 @@ namespace Drupal\Tests\flysystem\Unit\Verification;
 use Psr\Log\LoggerInterface;
 use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
 use League\Flysystem\FilesystemAdapter;
-use Drupal\Core\DependencyInjection\Container;
-use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\flysystem\Adapter\FlysystemAdapterInterface;
+use Drupal\Component\Plugin\Exception\InvalidPluginException;
+use Drupal\flysystem\Adapter\FlysystemAdapterBase;
 use Drupal\flysystem\Adapter\FlysystemAdapterManager;
-use Drupal\flysystem\Adapter\Local;
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
+use Drupal\flysystem\Plugin\FlysystemAdapter\Local;
 use Drupal\flysystem\Factory\OperatorFactory;
 use Drupal\flysystem\Resolution\BindingResolver;
 use Drupal\flysystem\Validation\SettingsValidator;
 use Drupal\flysystem\Verification\AdapterFeatureInspector;
 use Drupal\flysystem\Verification\BindingVerifier;
-use Drupal\flysystem_memory\Adapter\InMemory;
+use Drupal\flysystem_memory\Plugin\FlysystemAdapter\InMemory;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -103,44 +102,65 @@ final class BindingVerifierTest extends TestCase {
 
   /**
    * The manager's definitions: shipped backends plus fixtures, as built.
+   *
+   * A manager double standing in for the plugin manager service; the
+   * definition set mirrors attribute discovery and instantiation builds
+   * the real plugin classes with the caller's configuration.
    */
   private function manager(): FlysystemAdapterManager {
-    $container = new Container();
-    $container->set('test.adapter.local', new Local($this->webRoot));
-    $container->set('test.adapter.in_memory', new InMemory());
-    $container->set('test.adapter.absent_backend', new AbsentBackendFixture());
-    $container->set('test.adapter.remote_like', new RemoteLikeFixture());
-
-    return new FlysystemAdapterManager(
-      [
-        'local' => [
-          'driver' => 'local',
-          'label' => 'Local files',
-          'service' => 'test.adapter.local',
-          'class' => Local::class,
-        ],
-        'in_memory' => [
-          'driver' => 'in_memory',
-          'label' => 'In-memory (testing only)',
-          'service' => 'test.adapter.in_memory',
-          'class' => InMemory::class,
-        ],
-        'absent_backend' => [
-          'driver' => 'absent_backend',
-          'label' => 'Absent backend',
-          'service' => 'test.adapter.absent_backend',
-          'class' => AbsentBackendFixture::class,
-        ],
-        'remote_like' => [
-          'driver' => 'remote_like',
-          'label' => 'Remote-like fixture',
-          'service' => 'test.adapter.remote_like',
-          'class' => RemoteLikeFixture::class,
-        ],
+    $definitions = [
+      'local' => [
+        'id' => 'local',
+        'label' => 'Local files',
+        'class' => Local::class,
+        'provider' => 'flysystem',
       ],
-      $container,
-      $this->createMock(ModuleHandlerInterface::class),
+      'in_memory' => [
+        'id' => 'in_memory',
+        'label' => 'In-memory (testing only)',
+        'class' => InMemory::class,
+        'provider' => 'flysystem_memory',
+      ],
+      'absent_backend' => [
+        'id' => 'absent_backend',
+        'label' => 'Absent backend',
+        'class' => AbsentBackendFixture::class,
+        'provider' => 'flysystem',
+      ],
+      'remote_like' => [
+        'id' => 'remote_like',
+        'label' => 'Remote-like fixture',
+        'class' => RemoteLikeFixture::class,
+        'provider' => 'flysystem',
+      ],
+    ];
+
+    $manager = $this->createMock(FlysystemAdapterManager::class);
+    $manager->method('getDefinitions')->willReturn($definitions);
+    $manager->method('hasDefinition')->willReturnCallback(
+      static fn (string $id): bool => isset($definitions[$id])
     );
+    $manager->method('getDefinition')->willReturnCallback(
+      static fn (string $id): ?array => $definitions[$id] ?? NULL
+    );
+    $manager->method('createInstance')->willReturnCallback(
+      function (string $id, array $configuration = []) use ($definitions) {
+        if (!isset($definitions[$id])) {
+          throw new InvalidPluginException($id);
+        }
+        if ($id === 'local') {
+          return new Local(
+            $this->webRoot,
+            $configuration,
+            $id,
+            $definitions[$id]
+          );
+        }
+        $class = $definitions[$id]['class'];
+        return new $class($configuration, $id, $definitions[$id]);
+      }
+    );
+    return $manager;
   }
 
   /**
@@ -309,12 +329,12 @@ final class BindingVerifierTest extends TestCase {
 /**
  * A fixture backend whose package is not installed.
  */
-final class AbsentBackendFixture implements FlysystemAdapterInterface {
+final class AbsentBackendFixture extends FlysystemAdapterBase {
 
   /**
    * {@inheritdoc}
    */
-  public function adapter(array $config): FilesystemAdapter {
+  public function adapter(): FilesystemAdapter {
     throw new \LogicException('Unreachable: availability must be refused before building.');
   }
 
@@ -330,12 +350,12 @@ final class AbsentBackendFixture implements FlysystemAdapterInterface {
 /**
  * A fixture remote-style adapter with an in-memory object store.
  */
-final class RemoteLikeFixture implements FlysystemAdapterInterface {
+final class RemoteLikeFixture extends FlysystemAdapterBase {
 
   /**
    * {@inheritdoc}
    */
-  public function adapter(array $config): FilesystemAdapter {
+  public function adapter(): FilesystemAdapter {
     return new InMemoryFilesystemAdapter();
   }
 
