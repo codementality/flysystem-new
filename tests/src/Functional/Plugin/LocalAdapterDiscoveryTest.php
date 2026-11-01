@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Functional\Plugin;
+namespace Drupal\Tests\flysystem\Functional\Plugin;
 
 use Drupal\flysystem\Plugin\FlysystemAdapterInterface;
 use Drupal\flysystem\Plugin\FlysystemAdapterManager;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Unit\Resolution;
+namespace Drupal\Tests\flysystem\Unit\Resolution;
 
 use Drupal\flysystem\Definition\ArrayDefinitionSource;
 use Drupal\flysystem\Exception\PublicRootOutsideWebrootException;

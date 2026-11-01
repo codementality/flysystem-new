@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Unit\Plugin;
+namespace Drupal\Tests\flysystem\Unit\Plugin;
 
 use Psr\Log\LoggerInterface;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
