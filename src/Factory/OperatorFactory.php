@@ -20,7 +20,8 @@ use Psr\Log\LoggerInterface;
  * configuration, hand the produced adapter object to the filesystem
  * builder, and memoize the resulting operator for the request under the
  * definition's identity checksum. A scheme that resolves to core-native
- * (unbound or disabled) yields NULL and builds nothing — that is what keeps unbound schemes untouched.
+ * (unbound or disabled) yields NULL and builds nothing — that is what
+ * keeps unbound schemes untouched.
  *
  * Path posture is decided by the local-storage feature, never by
  * plugin names: local bindings get the library's default traversal
@@ -126,6 +127,5 @@ final class OperatorFactory {
     }
     return $this->operators[$key];
   }
-
 
 }

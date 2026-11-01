@@ -16,7 +16,7 @@ class InvalidSchemeNameException extends \InvalidArgumentException implements Fl
    *   The invalid scheme.
    */
   public function __construct(string $scheme) {
-    parent::__construct(sprintf("Invalid scheme name '%s': schemes must match ^[A-Za-z0-9_-]+$ (core's registerable grammar).", $scheme));
+    parent::__construct(sprintf("Invalid scheme name '%s': schemes must match ^[A-Za-z0-9-]+$ (core's registerable grammar).", $scheme));
   }
 
 }
