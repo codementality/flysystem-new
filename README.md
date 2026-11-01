@@ -33,8 +33,8 @@ $settings['flysystem'] = [
 
 That example keeps `public://` where Drupal normally puts it and moves
 `private://` to a `private-files` folder sitting next to your web folder
-instead of inside it — the same way the old (2.x) module spelled it, so
-existing configurations need no edits. A path that doesn't start with
+instead of inside it — the same way the old (2.x) module spelled paths,
+so path spellings carry over as written. A path that doesn't start with
 `/` is measured from your web folder, and `../` steps up out of it. A
 path that starts with `/` is an exact location on the server.
 
@@ -47,13 +47,16 @@ For each path:
   arrive as separate modules you can enable.
 - **`config`** — the storage's own settings. For `local`, that means
   `root`: the folder the files live in.
-- **`publicly_accessible`** — whether files in this path can be opened
-  directly through a web address. Only `public` assumes `TRUE`; every
-  other path assumes `FALSE`. A publicly reachable folder must live
-  inside your web folder — if it doesn't, the module says so plainly
-  when the path is used, because files outside the web folder cannot be
-  served by URL. (Storage that lives on another service, like S3, is
-  served by its own web address and is exempt from this rule.)
+- **`public`** (inside `config`) — whether files in this path can be
+  opened directly through a web address. Only `public` assumes `TRUE`;
+  every other path assumes `FALSE`. A publicly reachable folder must
+  live inside your web folder — if it doesn't, the module says so
+  plainly when the path is used, because files outside the web folder
+  cannot be served by URL. (Storage that lives on another service, like
+  S3, is served by its own web address and is exempt from this rule.)
+  This is the spelling the old 2.x module used. The invented
+  `publicly_accessible` sibling at the entry level is no longer
+  recognized; writing it produces an error that names this key.
 - **`disabled`** — set to `TRUE` to hand this path back to Drupal's
   normal storage, even if something else configured it.
 
@@ -70,7 +73,20 @@ without any extra work.
 
 ## Upgrading from the old (2.x) version of this module
 
-Your existing `$settings['flysystem']` entries keep working as written.
+Your existing `$settings['flysystem']` entries keep their shape —
+scheme-keyed entries with `driver`, `config`, and the `public` flag
+inside `config` are read exactly as the 2.x module read them. Two
+remote storage names changed to follow the storage library's own
+documentation, and one entry-level spelling is now rejected; everything
+else is untouched:
+
+- **`driver` names for remote storage** — `s3` is now written
+  `aws_s3_v3`, and `sftp` is now written `sftp_v3`. One word in the
+  `driver` line; the rest of the entry keeps its shape.
+- **`publicly_accessible` as a sibling of `driver`** — the flag lives
+  inside `config` as `public`, the spelling 2.x itself used. Writing
+  the sibling produces an error that names the recognized key.
+
 A few older settings keys belong to features that no longer exist and
 now do nothing — the module accepts them quietly so nothing breaks, but
 plan to remove them:
