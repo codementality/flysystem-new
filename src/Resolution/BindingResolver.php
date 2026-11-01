@@ -21,13 +21,17 @@ use Drupal\flysystem\Validation\SettingsValidator;
  *    higher source winning each leaf; the winning binding's optional
  *    config overrides merge over its adapter definition on the same rule.
  * 3. A binding marked disabled => TRUE — and a scheme with no binding at
- *    all — resolves to NULL, meaning the scheme stays core-native.
+ *    all — resolves to NULL, meaning the scheme stays core-native. A
+ *    disabled binding is ignored whole: it is not validated, so parking
+ *    a binding silences its content too (the verification sweep still
+ *    reports parked defects for an operator who asks).
  *
  * Resolution validates the touched scheme against the effective merged
- * layer through the injected validator, so a broken binding fails only
- * when something resolves through it — never at container build or
- * install. The validator's local-versus-remote answer comes from wiring
- * data (the plugin's declared features), not from running backend code.
+ * layer through the injected validator — except a disabled binding,
+ * which never reaches validation — so a broken binding fails only when
+ * something resolves through it, never at container build or install.
+ * The validator's local-versus-remote answer comes from wiring data
+ * (the plugin's declared features), not from running backend code.
  */
 class BindingResolver {
 
@@ -100,6 +104,15 @@ class BindingResolver {
       return NULL;
     }
 
+    // 'disabled' means ignore this entry whole: it is not validated at
+    // all, so stale or malformed content behind a parked binding never
+    // surfaces at touch time. A site disables a binding precisely to
+    // park it with its config in place; the verification sweep still
+    // reports the parked defects for an operator who asks.
+    if (($binding['disabled'] ?? NULL) === TRUE) {
+      return NULL;
+    }
+
     // Deep-merge adapter definitions across sources: lowest first so the
     // higher-precedence source wins every leaf.
     $adapters = [];
@@ -114,10 +127,6 @@ class BindingResolver {
       'adapters' => $adapters,
       'bindings' => [$scheme => $binding],
     ]);
-
-    if ($binding['disabled'] ?? FALSE) {
-      return NULL;
-    }
 
     $adapter_id = $binding['adapter'];
     $definition = $adapters[$adapter_id] ?? NULL;

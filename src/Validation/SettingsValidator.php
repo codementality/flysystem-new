@@ -214,12 +214,23 @@ final class SettingsValidator {
   /**
    * Checks binding entry types (adapter string plus optional typed flags).
    *
+   * A recorded rejected spelling — one this module no longer recognizes
+   * in user input but has seen published documentation use — raises a
+   * typed, guiding error naming the recognized key, rather than being
+   * silently ignored or silently honored.
+   *
    * @param string $path
    *   The settings path prefix for error messages.
    * @param array $binding
    *   The binding entry.
    */
   private function validateBindingShape(string $path, array $binding): void {
+    foreach ($binding['rejected_keys'] ?? [] as $rejected_key) {
+      throw new InvalidSettingsStructureException(
+        sprintf('%s[%s]', $path, $rejected_key),
+        sprintf("the public flag inside config (config['public']) — the entry-level '%s' spelling is not recognized", $rejected_key)
+      );
+    }
     if (!isset($binding['adapter']) || !is_string($binding['adapter'])) {
       throw new InvalidSettingsStructureException($path . '[adapter]', 'a string adapter id');
     }

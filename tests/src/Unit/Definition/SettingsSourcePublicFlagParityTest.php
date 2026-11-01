@@ -43,13 +43,25 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
   }
 
   /**
+   * The locality predicate the validator consumes: only 'local' is known.
+   *
+   * @param string $plugin_id
+   *   The plugin id being asked about.
+   *
+   * @return bool|null
+   *   TRUE for local storage, NULL for anything unknown.
+   */
+  public function localMode(string $plugin_id): ?bool {
+    return $plugin_id === 'local' ? TRUE : NULL;
+  }
+
+  /**
    * Builds a resolver over the settings.php facade with the local plugin known.
    */
   private function resolver(): BindingResolver {
-    $is_local = static fn (string $plugin_id): ?bool => $plugin_id === 'local' ? TRUE : NULL;
     return new BindingResolver(
       [new SettingsSource()],
-      new SettingsValidator('/app-root', $is_local),
+      new SettingsValidator('/app-root', [$this, 'localMode']),
     );
   }
 
@@ -80,9 +92,15 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
     $archive = $this->resolver()->resolve('archive');
 
     self::assertNotNull($assets);
-    self::assertTrue($assets['publicly_accessible'], "config['public'] = TRUE must answer publicly accessible for a new scheme.");
+    self::assertTrue(
+      $assets['publicly_accessible'],
+      "config['public'] = TRUE must answer publicly accessible."
+    );
     self::assertNotNull($archive);
-    self::assertFalse($archive['publicly_accessible'], "config['public'] = FALSE must answer not publicly accessible — the flag is honored, not tolerated.");
+    self::assertFalse(
+      $archive['publicly_accessible'],
+      "config['public'] = FALSE must be honored, not tolerated."
+    );
   }
 
   /**
@@ -110,7 +128,11 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
 
     $resolver = $this->resolver();
 
-    self::assertNotNull($resolver->resolve('other'), 'One entry\'s rejected spelling must not hold other schemes hostage — the error is lazy and scheme-local.');
+    self::assertNotNull(
+      $resolver->resolve('other'),
+      "One entry's rejected spelling must not hold other schemes "
+      . 'hostage — the error is lazy and scheme-local.'
+    );
 
     $this->expectException(InvalidSettingsStructureException::class);
     $this->expectExceptionMessageMatches('/\[publicly_accessible\].*config\[.public.\]/');
@@ -134,7 +156,11 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
       ],
     ]);
 
-    self::assertNull($this->resolver()->resolve('old'), 'Disabled means the entry is ignored — parked junk, even a rejected spelling, raises nothing at touch time.');
+    self::assertNull(
+      $this->resolver()->resolve('old'),
+      'Disabled means ignore: parked junk, even a rejected spelling, '
+      . 'raises nothing at touch time.'
+    );
   }
 
 }
