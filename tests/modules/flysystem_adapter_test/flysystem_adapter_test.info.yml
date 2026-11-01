@@ -1,0 +1,5 @@
+name: 'Flysystem test adapter'
+type: module
+description: 'Support module proving contributed-style adapter registration through the service tag.'
+package: Testing
+hidden: true

@@ -1,0 +1,8 @@
+# The four-line contrib on-ramp: a class implementing the contract plus
+# this tagged service declaration. No annotation classes, no manager
+# changes, nothing here known to the flysystem module in advance.
+services:
+  flysystem_adapter_test.memory_backed:
+    class: Drupal\flysystem_adapter_test\Adapter\MemoryBackedTestAdapter
+    tags:
+      - { name: flysystem.adapter, driver: test_adapter, label: 'Memory-backed test adapter' }
