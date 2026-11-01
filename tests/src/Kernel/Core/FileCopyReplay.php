@@ -32,7 +32,7 @@ abstract class FileCopyReplay extends FileReplayBase {
     $uri = $this->createUri();
 
     // Copying to a new name.
-    $desired_filepath = $this->uri($this->randomMachineName());
+    $desired_filepath = $this->uri($this->uploadName());
     $new_filepath = $this->container->get('file_system')->copy($uri, $desired_filepath, FileExists::Error);
     $this->assertNotFalse($new_filepath, 'Copy was successful.');
     $this->assertEquals($desired_filepath, $new_filepath, 'Returned expected filepath.');
@@ -43,7 +43,7 @@ abstract class FileCopyReplay extends FileReplayBase {
     }
 
     // Copying with rename.
-    $desired_filepath = $this->uri($this->randomMachineName());
+    $desired_filepath = $this->uri($this->uploadName());
     $this->assertNotFalse(file_put_contents($desired_filepath, ' '), 'Created a file so a rename will have to happen.');
     $newer_filepath = $this->container->get('file_system')->copy($uri, $desired_filepath, FileExists::Rename);
     $this->assertNotFalse($newer_filepath, 'Copy was successful.');

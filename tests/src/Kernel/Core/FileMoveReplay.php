@@ -30,7 +30,7 @@ abstract class FileMoveReplay extends FileReplayBase {
     $uri = $this->createUri();
 
     // Moving to a new name.
-    $desired_filepath = $this->uri($this->randomMachineName());
+    $desired_filepath = $this->uri($this->uploadName());
     /** @var \Drupal\Core\File\FileSystemInterface $file_system */
     $file_system = $this->container->get('file_system');
     $new_filepath = $file_system->move($uri, $desired_filepath, FileExists::Error);
@@ -43,7 +43,7 @@ abstract class FileMoveReplay extends FileReplayBase {
     }
 
     // Moving with rename.
-    $desired_filepath = $this->uri($this->randomMachineName());
+    $desired_filepath = $this->uri($this->uploadName());
     $this->assertFileExists($new_filepath);
     $this->assertNotFalse(file_put_contents($desired_filepath, ' '), 'Created a file so a rename will have to happen.');
     $newer_filepath = $file_system->move($new_filepath, $desired_filepath, FileExists::Rename);

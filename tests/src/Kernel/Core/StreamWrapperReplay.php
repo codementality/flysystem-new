@@ -115,7 +115,7 @@ abstract class StreamWrapperReplay extends FileReplayBase {
    */
   public function testFileFunctions(): void {
     $this->assertDispatchIsLive();
-    $filename = $this->uri($this->randomMachineName());
+    $filename = $this->uri($this->uploadName());
     file_put_contents($filename, str_repeat('d', 1000));
 
     // Open for rw and place pointer at beginning of file so select will return.

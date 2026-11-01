@@ -189,6 +189,15 @@ abstract class FileReplayBase extends KernelTestBase {
   /**
    * Creates a file under the scheme under test and returns its URI.
    *
+   * The default fixture name is an upload-shaped name, not core's
+   * original fixture: managed uploads are filtered by extension (the
+   * platform's default allow-list is jpg, jpeg, gif, png, txt, and
+   * friends — an extensionless name can never be an upload), and the
+   * storage key keeps its characters raw — percent-encoding belongs to
+   * the URL layer and is pinned by a dedicated leg in the URL generator
+   * replay. The international characters are retained from core's
+   * fixture so Unicode keys stay under test; spaces are replaced.
+   *
    * The write goes through the wrapper — this helper is itself a leg,
    * not a fixture bypass.
    *
@@ -201,11 +210,21 @@ abstract class FileReplayBase extends KernelTestBase {
    *   The stream URI.
    */
   protected function createUri(?string $path = NULL, ?string $contents = NULL): string {
-    $path ??= 'Файл для тестирования ' . $this->randomMachineName();
+    $path ??= 'Файл_для_тестирования_' . $this->randomMachineName() . '.txt';
     $uri = $this->uri($path);
     file_put_contents($uri, $contents ?? "file_put_contents() doesn't seem to appreciate empty strings so let's put in some data.");
     self::assertFileExists($uri);
     return $uri;
+  }
+
+  /**
+   * An upload-shaped random file name (approved extension included).
+   *
+   * Managed upload filtering recognizes names like this; the copied
+   * suites use it for any fixture that simulates an uploaded file.
+   */
+  protected function uploadName(): string {
+    return $this->randomMachineName() . '.txt';
   }
 
   /**
