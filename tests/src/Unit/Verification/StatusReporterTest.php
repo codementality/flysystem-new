@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\flysystem\Tests\Unit\Verification;
+namespace Drupal\Tests\flysystem\Unit\Verification;
 
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
