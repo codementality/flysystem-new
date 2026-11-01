@@ -59,7 +59,11 @@ trait AdapterAgnosticGraphAssertionsTrait {
     foreach ($operator->listContents('graph', FALSE) as $item) {
       $paths[] = $item->path();
     }
-    self::assertSame(['proof.txt'], $paths, 'Listings are root-relative, as the library defines them.');
+    self::assertSame(
+      ['graph/proof.txt'],
+      $paths,
+      'Listing paths are complete from the bound root, as the library defines them — never host-directory artifacts.'
+    );
     $operator->delete('graph/proof.txt');
     self::assertFalse($operator->fileExists('graph/proof.txt'));
   }
