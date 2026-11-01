@@ -180,6 +180,51 @@ final class LocalAdapterPluginTest extends TestCase {
   }
 
   /**
+   * Implicitly created directories carry Drupal's directory mode.
+   *
+   * Flysystem's internal PortableVisibilityConverter defaults are
+   * 0644/0755 with new directories created PRIVATE; Drupal's long-standing
+   * posture is 0664 files / 0775 directories, created with the public
+   * mode to match core's own mkdir behavior. The explicit converter the
+   * plugin passes to the library adapter is what carries that posture —
+   * these legs fail if it is ever dropped or replaced by the library
+   * default.
+   */
+  public function testImplicitDirectoriesGetDrupalDirectoryMode(): void {
+    new Settings([]);
+    $operator = $this->operator(['root' => 'dirmode']);
+    $operator->write('created/by-write.txt', 'x');
+    $mode = fileperms($this->appRoot . '/dirmode/created') & 0777;
+    self::assertSame(0775, $mode, 'Created directories must carry the Drupal default 0775, not league\'s 0755.');
+    $dirMode = fileperms($this->appRoot . '/dirmode') & 0777;
+    self::assertSame(0775, $dirMode, 'The bound root itself is created lazily with the same mode.');
+  }
+
+  /**
+   * The file_chmod_directory setting drives the created-directory mode.
+   */
+  public function testFileChmodDirectorySettingDrivesDirMode(): void {
+    new Settings(['file_chmod_directory' => 0770]);
+    $operator = $this->operator(['root' => 'dirset']);
+    $operator->write('sub/x.txt', 'x');
+    $mode = fileperms($this->appRoot . '/dirset/sub') & 0777;
+    self::assertSame(0770, $mode, 'A site file_chmod_directory setting must reach implicitly created directories, exactly as 2.x read it.');
+  }
+
+  /**
+   * A private-visibility write still creates public-mode directories.
+   */
+  public function testPrivateWriteStillCreatesPublicModeDirectories(): void {
+    new Settings([]);
+    $operator = $this->operator(['root' => 'mixed']);
+    $operator->write('folder/secret.txt', 'x', ['visibility' => 'private']);
+    $fileMode = fileperms($this->appRoot . '/mixed/folder/secret.txt') & 0777;
+    $dirMode = fileperms($this->appRoot . '/mixed/folder') & 0777;
+    self::assertSame(0600, $fileMode, 'The private file mode applies to the file.');
+    self::assertSame(0775, $dirMode, 'Directory creation follows the declared default-for-directories posture (public), matching core: a private file inside a traversable folder.');
+  }
+
+  /**
    * A leading '..' in a target throws through the operator.
    */
   public function testLeadingEscapeInTargetThrows(): void {
@@ -202,6 +247,20 @@ final class LocalAdapterPluginTest extends TestCase {
     $operator->write('deep/nested.txt', 'v');
     $read = $operator->readStream('deep/../deep/nested.txt');
     self::assertSame('v', stream_get_contents($read), 'Local-mode operators keep library-default relative resolution inside the root.');
+  }
+
+  /**
+   * Pre-existing directories are never rewritten by a write.
+   */
+  public function testExistingDirectoryModesAreNeverRewritten(): void {
+    new Settings([]);
+    $dir = $this->appRoot . '/preset';
+    mkdir($dir, 0700, TRUE);
+    chmod($dir, 0700);
+    $operator = $this->operator(['root' => 'preset-root']);
+    $operator->write('inside.txt', 'x');
+    $mode = fileperms($dir) & 0777;
+    self::assertSame(0700, $mode, 'A directory the site already made keeps its mode — only directories this operation creates get the declared one.');
   }
 
   /**
