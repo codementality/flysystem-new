@@ -117,5 +117,9 @@ path, which one it uses.
 
 If you're a developer adding support for another storage service (or
 contributing one to this project), read
-[DEVELOPER_NOTES.md](DEVELOPER_NOTES.md) — it covers the plugin
-interface, discovery, and the settings that reach your code.
+[docs/DEVELOPER_NOTES.md](docs/DEVELOPER_NOTES.md) — it covers the
+plugin interface, discovery, and the settings that reach your code.
+Working with an AI coding assistant? Have it read
+[AGENT_AI_DEVELOPMENT.md](AGENT_AI_DEVELOPMENT.md) at the module root
+first: the architecture, the invariants the tests enforce, and the
+patch conventions.
