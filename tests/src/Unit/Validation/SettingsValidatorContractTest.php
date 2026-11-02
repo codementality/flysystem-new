@@ -93,8 +93,8 @@ final class SettingsValidatorContractTest extends TestCase {
    * Verifies the documented name patterns are the validator's constants.
    */
   public function testNamePatternsAreTheDocumentedVocabulary(): void {
-    self::assertSame('/^[A-Za-z0-9-]+$/', SettingsValidator::SCHEME_PATTERN, 'Scheme grammar must be the intersection of PHP-registration and core-parsing grammars (see class docblock).');
-    self::assertSame('/^[a-z0-9_]+$/', SettingsValidator::ADAPTER_ID_PATTERN, 'Adapter id grammar is lowercase alphanumeric plus underscore.');
+    $this->assertSame('/^[A-Za-z0-9-]+$/', SettingsValidator::SCHEME_PATTERN, 'Scheme grammar must be the intersection of PHP-registration and core-parsing grammars (see class docblock).');
+    $this->assertSame('/^[a-z0-9_]+$/', SettingsValidator::ADAPTER_ID_PATTERN, 'Adapter id grammar is lowercase alphanumeric plus underscore.');
   }
 
   /**
@@ -409,11 +409,11 @@ final class SettingsValidatorContractTest extends TestCase {
     $layer = self::layerFor('public', ['adapter' => 'main', 'publicly_accessible' => TRUE], ['main' => self::localDefinition('../public-outside')]);
     try {
       self::validator()->validateScheme('public', $layer);
-      self::fail('Expected PublicRootOutsideWebrootException.');
+      $this->fail('Expected PublicRootOutsideWebrootException.');
     }
     catch (PublicRootOutsideWebrootException $e) {
-      self::assertStringContainsString('/public-outside', $e->getMessage(), 'Lexically resolved path must appear in the error (anchored to app root, never realpath).');
-      self::assertStringContainsString('public', $e->getMessage());
+      $this->assertStringContainsString('/public-outside', $e->getMessage(), 'Lexically resolved path must appear in the error (anchored to app root, never realpath).');
+      $this->assertStringContainsString('public', $e->getMessage());
     }
   }
 
@@ -452,7 +452,7 @@ final class SettingsValidatorContractTest extends TestCase {
    */
   public function testSchemeErrorMessageMatchesTheEnforcedPattern(): void {
     $message = (new InvalidSchemeNameException('bad_name'))->getMessage();
-    self::assertStringContainsString(
+    $this->assertStringContainsString(
       trim(SettingsValidator::SCHEME_PATTERN, '/'),
       $message,
       'A typed error that names a grammar the validator does not actually enforce would misdirect every site builder reading it.'

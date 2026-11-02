@@ -203,17 +203,17 @@ final class OperatorFactoryTest extends TestCase {
     ]);
 
     $operator = $factory->operatorFor('public');
-    self::assertInstanceOf(FilesystemOperator::class, $operator);
+    $this->assertInstanceOf(FilesystemOperator::class, $operator);
     $operator->write('notes/readme.txt', 'factory built this');
-    self::assertSame('factory built this', $operator->read('notes/readme.txt'));
+    $this->assertSame('factory built this', $operator->read('notes/readme.txt'));
     $paths = [];
     foreach ($operator->listContents('', TRUE) as $item) {
       if ($item->type() === 'file') {
         $paths[] = $item->path();
       }
     }
-    self::assertSame(['notes/readme.txt'], $paths);
-    self::assertFileExists(
+    $this->assertSame(['notes/readme.txt'], $paths);
+    $this->assertFileExists(
       $this->webRoot . '/store/notes/readme.txt',
       "The operator must land in the configured root under the app root, materialized on first write.",
     );
@@ -224,7 +224,7 @@ final class OperatorFactoryTest extends TestCase {
    */
   public function testUnboundSchemeResolvesToNoOperator(): void {
     $factory = $this->factory(['adapters' => [], 'bindings' => []]);
-    self::assertNull($factory->operatorFor('nothing_here'));
+    $this->assertNull($factory->operatorFor('nothing_here'));
   }
 
   /**
@@ -241,7 +241,7 @@ final class OperatorFactoryTest extends TestCase {
         'broken' => ['adapter' => 'bad'],
       ],
     ]);
-    self::assertInstanceOf(FilesystemOperator::class, $factory->operatorFor('public'));
+    $this->assertInstanceOf(FilesystemOperator::class, $factory->operatorFor('public'));
     $this->expectException(UnknownAdapterPluginException::class);
     $factory->operatorFor('broken');
   }
@@ -262,8 +262,8 @@ final class OperatorFactoryTest extends TestCase {
     $first = $factory->operatorFor('public');
     $again = $factory->operatorFor('public');
     $other = $factory->operatorFor('second');
-    self::assertSame($first, $again, 'Per-request memoization must hand back the same object.');
-    self::assertSame(
+    $this->assertSame($first, $again, 'Per-request memoization must hand back the same object.');
+    $this->assertSame(
       $first,
       $other,
       'Two schemes on one definition share one operator — the key is the definition, not the scheme.',
@@ -284,7 +284,7 @@ final class OperatorFactoryTest extends TestCase {
         'other' => ['adapter' => 'alt'],
       ],
     ]);
-    self::assertNotSame($factory->operatorFor('public'), $factory->operatorFor('other'));
+    $this->assertNotSame($factory->operatorFor('public'), $factory->operatorFor('other'));
   }
 
   /**
@@ -301,7 +301,7 @@ final class OperatorFactoryTest extends TestCase {
     ]);
     $operator = $factory->operatorFor('public');
     $operator->write('deep/target.txt', 'v');
-    self::assertSame(
+    $this->assertSame(
       'v',
       $operator->read('deep/../deep/target.txt'),
       'Local-mode operators keep the library default: interior .. collapses within the bound root.',
@@ -333,7 +333,7 @@ final class OperatorFactoryTest extends TestCase {
       ],
     ]);
     $operator = $factory->operatorFor('cdn');
-    self::assertInstanceOf(FilesystemOperator::class, $operator);
+    $this->assertInstanceOf(FilesystemOperator::class, $operator);
     $this->expectException(PathTraversalDetected::class);
     $operator->read('data/../other.txt');
   }

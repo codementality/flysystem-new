@@ -91,13 +91,13 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
     $assets = $this->resolver()->resolve('assets');
     $archive = $this->resolver()->resolve('archive');
 
-    self::assertNotNull($assets);
-    self::assertTrue(
+    $this->assertNotNull($assets);
+    $this->assertTrue(
       $assets['publicly_accessible'],
       "config['public'] = TRUE must answer publicly accessible."
     );
-    self::assertNotNull($archive);
-    self::assertFalse(
+    $this->assertNotNull($archive);
+    $this->assertFalse(
       $archive['publicly_accessible'],
       "config['public'] = FALSE must be honored, not tolerated."
     );
@@ -128,7 +128,7 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
 
     $resolver = $this->resolver();
 
-    self::assertNotNull(
+    $this->assertNotNull(
       $resolver->resolve('other'),
       "One entry's rejected spelling must not hold other schemes "
       . 'hostage — the error is lazy and scheme-local.'
@@ -156,7 +156,7 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
       ],
     ]);
 
-    self::assertNull(
+    $this->assertNull(
       $this->resolver()->resolve('old'),
       'Disabled means ignore: parked junk, even a rejected spelling, '
       . 'raises nothing at touch time.'

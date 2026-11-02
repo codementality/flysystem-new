@@ -75,7 +75,7 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
       ],
     ]);
 
-    self::assertNull(
+    $this->assertNull(
       $resolver->resolve('parked'),
       'A disabled entry is ignored whole; its malformed sibling never surfaces.'
     );
@@ -103,11 +103,11 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
     ]);
 
     $resolved = $resolver->resolve('public');
-    self::assertNotNull(
+    $this->assertNotNull(
       $resolved,
       'A well-formed scheme resolves normally regardless of a parked entry.'
     );
-    self::assertSame('local', $resolved['plugin']);
+    $this->assertSame('local', $resolved['plugin']);
   }
 
   /**

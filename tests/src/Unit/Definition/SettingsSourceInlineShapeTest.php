@@ -61,7 +61,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     ]);
     $source = new SettingsSource();
     $adapters = $source->getAdapterDefinitions();
-    self::assertSame([
+    $this->assertSame([
       'local_example' => [
         'plugin' => 'local',
         'config' => [
@@ -90,7 +90,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     ]);
     $source = new SettingsSource();
     $bindings = $source->getSchemeBindings();
-    self::assertSame([
+    $this->assertSame([
       'local-example' => ['adapter' => 'local_example', 'publicly_accessible' => TRUE],
       'sftpbackup' => ['adapter' => 'sftpbackup'],
     ], $bindings, 'Every scheme becomes a binding to its sanitized adapter id; the 2.x config "public" flag becomes the binding-level publicly-accessible answer, and only when it is set.');
@@ -113,13 +113,13 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     ]);
     $source = new SettingsSource();
     $adapters = $source->getAdapterDefinitions();
-    self::assertSame(
+    $this->assertSame(
       ['public', 'public_2'],
       array_keys($adapters),
       'Both colliding schemes keep a distinct, grammar-legal adapter id in sorted order.',
     );
-    self::assertSame('upper', $adapters['public']['config']['root']);
-    self::assertSame('lower', $adapters['public_2']['config']['root']);
+    $this->assertSame('upper', $adapters['public']['config']['root']);
+    $this->assertSame('lower', $adapters['public_2']['config']['root']);
   }
 
   /**
@@ -134,11 +134,11 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     $source = new SettingsSource();
     try {
       $source->getAdapterDefinitions();
-      self::fail('Expected a typed structure exception for the two-section write form.');
+      $this->fail('Expected a typed structure exception for the two-section write form.');
     }
     catch (InvalidSettingsStructureException $e) {
-      self::assertStringContainsString('adapters', $e->getMessage());
-      self::assertStringContainsString('driver', $e->getMessage(), 'The error must teach the supported format, not just reject the old one.');
+      $this->assertStringContainsString('adapters', $e->getMessage());
+      $this->assertStringContainsString('driver', $e->getMessage(), 'The error must teach the supported format, not just reject the old one.');
     }
   }
 
@@ -148,8 +148,8 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   public function testEmptyLayerYieldsEmptyLayers(): void {
     new Settings(['flysystem' => []]);
     $source = new SettingsSource();
-    self::assertSame([], $source->getAdapterDefinitions());
-    self::assertSame([], $source->getSchemeBindings());
+    $this->assertSame([], $source->getAdapterDefinitions());
+    $this->assertSame([], $source->getSchemeBindings());
   }
 
   /**
@@ -166,7 +166,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
       ],
     ]);
     $bindings = (new SettingsSource())->getSchemeBindings();
-    self::assertSame([
+    $this->assertSame([
       'adapter' => 'temporary',
       'disabled' => TRUE,
     ], $bindings['temporary'], 'A disabled sibling must survive into the binding so resolution can pin the scheme core-native.');
@@ -192,8 +192,8 @@ final class SettingsSourceInlineShapeTest extends TestCase {
       ],
     ]);
     $bindings = (new SettingsSource())->getSchemeBindings();
-    self::assertSame([['publicly_accessible']], array_column($bindings, 'rejected_keys'), 'The rejected spelling is recorded on the binding for the validator (the grammar authority) to complain about lazily, scheme-local — the source itself stays presentation-only.');
-    self::assertTrue($bindings['cdn']['publicly_accessible'], 'config[public] is the recognized flag; it is never overridden by the invented spelling.');
+    $this->assertSame([['publicly_accessible']], array_column($bindings, 'rejected_keys'), 'The rejected spelling is recorded on the binding for the validator (the grammar authority) to complain about lazily, scheme-local — the source itself stays presentation-only.');
+    $this->assertTrue($bindings['cdn']['publicly_accessible'], 'config[public] is the recognized flag; it is never overridden by the invented spelling.');
   }
 
   /**
@@ -207,9 +207,9 @@ final class SettingsSourceInlineShapeTest extends TestCase {
       ],
     ]);
     $bindings = (new SettingsSource())->getSchemeBindings();
-    self::assertArrayHasKey('publicly_accessible', $bindings['one']);
-    self::assertFalse($bindings['one']['publicly_accessible']);
-    self::assertArrayNotHasKey('publicly_accessible', $bindings['two'], 'Only a real boolean drives the binding-level answer; other values stay inert in the adapter config.');
+    $this->assertArrayHasKey('publicly_accessible', $bindings['one']);
+    $this->assertFalse($bindings['one']['publicly_accessible']);
+    $this->assertArrayNotHasKey('publicly_accessible', $bindings['two'], 'Only a real boolean drives the binding-level answer; other values stay inert in the adapter config.');
   }
 
 }

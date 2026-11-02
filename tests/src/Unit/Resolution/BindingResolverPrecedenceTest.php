@@ -78,7 +78,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
   #[DataProvider('precedenceProvider')]
   public function testResolveAnswersThePrecedenceMatrix(array $settings, array $entity, string $scheme, ?array $expected): void {
     $result = $this->resolver($settings, $entity)->resolve($scheme);
-    self::assertEquals($expected, $result);
+    $this->assertEquals($expected, $result);
   }
 
   /**
@@ -270,7 +270,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
     ];
     $resolver = $this->resolver($settings, []);
     $resolved = $resolver->resolve('public');
-    self::assertNotNull($resolved, 'The healthy scheme must resolve untouched by the neighboring defect.');
+    $this->assertNotNull($resolved, 'The healthy scheme must resolve untouched by the neighboring defect.');
     $this->expectException(PublicRootOutsideWebrootException::class);
     $resolver->resolve('private');
   }
@@ -306,7 +306,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
       'bindings' => ['public' => ['adapter' => 'cdn']],
     ];
     $resolved = $this->resolver($settings, [])->resolve('public');
-    self::assertSame('s3', $resolved['plugin'], 'The exemption follows the plugin-locality answer, not name guessing.');
+    $this->assertSame('s3', $resolved['plugin'], 'The exemption follows the plugin-locality answer, not name guessing.');
   }
 
 }

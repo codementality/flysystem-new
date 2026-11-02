@@ -54,7 +54,7 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
     if (isset($layer['adapters']) || isset($layer['bindings'])) {
       throw new InvalidSettingsStructureException('flysystem', "one entry per scheme, each carrying a string 'driver' (the two-section 'adapters'/'bindings' write form is not supported; the internal two-layer model is an implementation detail, not a configuration format)");
     }
-    return self::normalizeFlat($layer);
+    return $this->normalizeFlat($layer);
   }
 
   /**
@@ -78,7 +78,7 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
    * @return array<string, array>
    *   Normalized 'adapters' and 'bindings' sections.
    */
-  private static function normalizeFlat(array $layer): array {
+  private function normalizeFlat(array $layer): array {
     $adapters = [];
     $bindings = [];
     $schemes = array_keys($layer);

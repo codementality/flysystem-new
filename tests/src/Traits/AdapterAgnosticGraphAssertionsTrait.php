@@ -44,13 +44,13 @@ trait AdapterAgnosticGraphAssertionsTrait {
   protected function legRoundTrip(): void {
     $factory = $this->container->get('flysystem.operator_factory');
     $operator = $factory->operatorFor($this->swapScheme);
-    self::assertInstanceOf(
+    $this->assertInstanceOf(
       FilesystemOperator::class,
       $operator,
       'The graph produces a library FilesystemOperator for the bound scheme.'
     );
     $operator->write('graph/proof.txt', 'through the graph');
-    self::assertSame(
+    $this->assertSame(
       'through the graph',
       $operator->read('graph/proof.txt'),
       'Bytes round-trip on this backend.'
@@ -59,13 +59,13 @@ trait AdapterAgnosticGraphAssertionsTrait {
     foreach ($operator->listContents('graph', FALSE) as $item) {
       $paths[] = $item->path();
     }
-    self::assertSame(
+    $this->assertSame(
       ['graph/proof.txt'],
       $paths,
       'Listing paths are complete from the bound root, as the library defines them — never host-directory artifacts.'
     );
     $operator->delete('graph/proof.txt');
-    self::assertFalse($operator->fileExists('graph/proof.txt'));
+    $this->assertFalse($operator->fileExists('graph/proof.txt'));
   }
 
   /**
@@ -73,7 +73,7 @@ trait AdapterAgnosticGraphAssertionsTrait {
    */
   protected function legMemoization(): void {
     $factory = $this->container->get('flysystem.operator_factory');
-    self::assertSame(
+    $this->assertSame(
       $factory->operatorFor($this->swapScheme),
       $factory->operatorFor($this->swapScheme),
       'Memoization is by definition identity, per request.'
@@ -85,7 +85,7 @@ trait AdapterAgnosticGraphAssertionsTrait {
    */
   protected function legUnboundIsNative(): void {
     $factory = $this->container->get('flysystem.operator_factory');
-    self::assertNull(
+    $this->assertNull(
       $factory->operatorFor('graph-unbound'),
       'Unbound schemes resolve to the core-native NULL answer; the graph builds nothing for them.'
     );
@@ -98,10 +98,10 @@ trait AdapterAgnosticGraphAssertionsTrait {
     $factory = $this->container->get('flysystem.operator_factory');
     try {
       $factory->operatorFor('graph-ghost');
-      self::fail('A ghost driver must raise the typed unknown-plugin error when touched.');
+      $this->fail('A ghost driver must raise the typed unknown-plugin error when touched.');
     }
     catch (UnknownAdapterPluginException $e) {
-      self::assertStringContainsString('ghost_driver', $e->getMessage(), 'The typed error names the offending driver.');
+      $this->assertStringContainsString('ghost_driver', $e->getMessage(), 'The typed error names the offending driver.');
     }
   }
 
@@ -122,7 +122,7 @@ trait AdapterAgnosticGraphAssertionsTrait {
     $operator = $factory->operatorFor($this->swapScheme);
     $operator->write('deep/target.txt', 'v');
     if ($resolves) {
-      self::assertSame(
+      $this->assertSame(
         'v',
         $operator->read('deep/../deep/target.txt'),
         'A local-storage declaration gets the library default: interior .. resolves inside the bound root.'
