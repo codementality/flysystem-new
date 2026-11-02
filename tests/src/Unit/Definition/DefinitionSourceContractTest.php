@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
  * merging/precedence. Presenting the source's own configuration in that
  * shape is the source's only mapping job: the settings source accepts
  * exactly one user-facing format (one entry per scheme, carrying a
- * 'driver') and maps it to the two layers; the array-backed source takes
+ * 'adapter') and maps it to the two layers; the array-backed source takes
  * the layers directly. No source-specific branch may exist anywhere below
  * the resolver, so the interface carries no origin/type sniffing method
  * either (frozen by reflection).
@@ -51,8 +51,8 @@ final class DefinitionSourceContractTest extends TestCase {
   public static function sampleLayer(): array {
     return [
       'adapters' => [
-        'public' => ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']],
-        'private' => ['plugin' => 'local', 'config' => ['root' => '../private-files', 'public' => FALSE]],
+        'public' => ['adapter' => 'local', 'config' => ['root' => 'sites/default/files']],
+        'private' => ['adapter' => 'local', 'config' => ['root' => '../private-files', 'public' => FALSE]],
       ],
       'bindings' => [
         'public' => ['adapter' => 'public'],
@@ -70,11 +70,11 @@ final class DefinitionSourceContractTest extends TestCase {
   public static function flatSample(): array {
     return [
       'public' => [
-        'driver' => 'local',
+        'adapter' => 'local',
         'config' => ['root' => 'sites/default/files'],
       ],
       'private' => [
-        'driver' => 'local',
+        'adapter' => 'local',
         'config' => ['root' => '../private-files', 'public' => FALSE],
       ],
     ];
@@ -195,9 +195,9 @@ final class DefinitionSourceContractTest extends TestCase {
       'full sample' => [self::flatSample(), $sample],
       'empty' => [[], []],
       'single scheme' => [
-        ['cdn' => ['driver' => 'local', 'config' => ['root' => 'cdn']]],
+        ['cdn' => ['adapter' => 'local', 'config' => ['root' => 'cdn']]],
         [
-          'adapters' => ['cdn' => ['plugin' => 'local', 'config' => ['root' => 'cdn']]],
+          'adapters' => ['cdn' => ['adapter' => 'local', 'config' => ['root' => 'cdn']]],
           'bindings' => ['cdn' => ['adapter' => 'cdn']],
         ],
       ],
@@ -214,7 +214,7 @@ final class DefinitionSourceContractTest extends TestCase {
     new Settings([
       'flysystem' => [
         'public' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'config' => ['root' => 'files', 'name' => 'kept', 'replicate' => 'ignored-later'],
           'disabled' => 'not-a-bool',
         ],
@@ -223,7 +223,7 @@ final class DefinitionSourceContractTest extends TestCase {
     $source = new SettingsSource();
     $this->assertSame([
       'public' => [
-        'plugin' => 'local',
+        'adapter' => 'local',
         'config' => [
           'root' => 'files',
           'name' => 'kept',
@@ -237,7 +237,7 @@ final class DefinitionSourceContractTest extends TestCase {
 
     // The array source passes sections verbatim, validation-free.
     $malformed = [
-      'adapters' => ['main' => ['plugin' => 'local', 'unexpected_key' => 'kept']],
+      'adapters' => ['main' => ['adapter' => 'local', 'unexpected_key' => 'kept']],
       'bindings' => ['public' => ['adapter' => 'main', 'disabled' => 'not-a-bool']],
     ];
     $fake = new ArrayDefinitionSource($malformed);

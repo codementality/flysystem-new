@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The directory replay against a local-driver binding.
+ * The directory replay against a local-adapter binding.
  *
- * Same suite, one word: the driver is 'local'; the binding roots at a
+ * Same suite, one word: the adapter is 'local'; the binding roots at a
  * temporary directory; directory-mode legs run.
  */
 #[Group('flysystem')]
@@ -20,7 +20,7 @@ final class DirectoryLocalTest extends DirectoryLocalStorageReplay {
   /**
    * {@inheritdoc}
    */
-  protected function replayDriver(): string {
+  protected function replayAdapter(): string {
     return 'local';
   }
 

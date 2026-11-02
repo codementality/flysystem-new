@@ -16,7 +16,7 @@ use Drupal\KernelTests\KernelTestBase;
  * test, never hardcoded to core's public:// — a copied body asserting
  * against a scheme it does not exercise passes vacuously, and vacuous
  * passes are the failure this harness exists to prevent. Host classes
- * differ only in the modules they enable and the driver word their
+ * differ only in the modules they enable and the adapter word their
  * binding carries; the suite body, and therefore the specification,
  * is shared.
  *
@@ -82,13 +82,13 @@ abstract class FileReplayBase extends KernelTestBase {
       ->save();
 
     $this->replayRoot = $this->siteDirectory . '/replay-root';
-    // The binding is ordinary site configuration: the driver word and
+    // The binding is ordinary site configuration: the adapter word and
     // its config flow through the same resolution path the production
     // wrapper will read them through once storage behavior lands. No
     // test injects an operator into a wrapper.
     $this->setSetting('flysystem', [
       $this->scheme => [
-        'driver' => $this->replayDriver(),
+        'adapter' => $this->replayAdapter(),
         'config' => $this->replayConfig(),
       ],
     ]);
@@ -104,9 +104,9 @@ abstract class FileReplayBase extends KernelTestBase {
   }
 
   /**
-   * The driver word this host binds the replay scheme to.
+   * The adapter word this host binds the replay scheme to.
    */
-  abstract protected function replayDriver(): string;
+  abstract protected function replayAdapter(): string;
 
   /**
    * Whether this host's binding declares local-storage traversal rules.

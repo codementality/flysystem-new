@@ -14,13 +14,13 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  *
  * One of three host tests running the identical shared assertion base
  * (AdapterAgnosticGraphAssertionsTrait); between them differ exactly
- * two things: the enabled modules and the driver word in the settings
+ * two things: the enabled modules and the adapter word in the settings
  * binding. Local storage declares the local feature, so the interior
  * '..' leg expects library-default resolution inside the bound root.
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
-final class LocalDriverGraphTest extends KernelTestBase {
+final class LocalAdapterGraphTest extends KernelTestBase {
 
   use AdapterAgnosticGraphAssertionsTrait;
 
@@ -36,8 +36,8 @@ final class LocalDriverGraphTest extends KernelTestBase {
     parent::setUp();
     $this->swapScheme = 'graph-swap';
     $this->setSetting('flysystem', [
-      'graph-swap' => ['driver' => 'local', 'config' => ['root' => 'graph-local']],
-      'graph-ghost' => ['driver' => 'ghost_driver'],
+      'graph-swap' => ['adapter' => 'local', 'config' => ['root' => 'graph-local']],
+      'graph-ghost' => ['adapter' => 'ghost_adapter'],
     ]);
   }
 

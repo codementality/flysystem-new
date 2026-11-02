@@ -188,7 +188,7 @@ final class BindingVerifierTest extends TestCase {
   public function testHealthyBindingProducesNoFindings(): void {
     $verifier = $this->verifier([
       [
-        'adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 'files']]],
+        'adapters' => ['main' => ['adapter' => 'local', 'config' => ['root' => 'files']]],
         'bindings' => ['public' => ['adapter' => 'main']],
       ],
     ]);
@@ -209,7 +209,7 @@ final class BindingVerifierTest extends TestCase {
   public function testUnknownPluginBecomesErrorFinding(): void {
     $verifier = $this->verifier([
       [
-        'adapters' => ['m' => ['plugin' => 'ghost_plugin']],
+        'adapters' => ['m' => ['adapter' => 'ghost_plugin']],
         'bindings' => ['s' => ['adapter' => 'm']],
       ],
     ]);
@@ -225,7 +225,7 @@ final class BindingVerifierTest extends TestCase {
   public function testUnavailableBackendBecomesErrorFinding(): void {
     $verifier = $this->verifier([
       [
-        'adapters' => ['m' => ['plugin' => 'absent_backend', 'config' => []]],
+        'adapters' => ['m' => ['adapter' => 'absent_backend', 'config' => []]],
         'bindings' => ['s' => ['adapter' => 'm']],
       ],
     ]);
@@ -241,7 +241,7 @@ final class BindingVerifierTest extends TestCase {
   public function testContainmentViolationBecomesErrorFinding(): void {
     $verifier = $this->verifier([
       [
-        'adapters' => ['m' => ['plugin' => 'local', 'config' => ['root' => '/srv/outside-webroot']]],
+        'adapters' => ['m' => ['adapter' => 'local', 'config' => ['root' => '/srv/outside-webroot']]],
         'bindings' => ['public' => ['adapter' => 'm']],
       ],
     ]);
@@ -270,8 +270,8 @@ final class BindingVerifierTest extends TestCase {
     $verifier = $this->verifier([
       [
         'adapters' => [
-          'main' => ['plugin' => 'local', 'config' => ['root' => 'files']],
-          'ghosty' => ['plugin' => 'no_such'],
+          'main' => ['adapter' => 'local', 'config' => ['root' => 'files']],
+          'ghosty' => ['adapter' => 'no_such'],
         ],
         'bindings' => [
           'public' => ['adapter' => 'main'],
@@ -308,11 +308,11 @@ final class BindingVerifierTest extends TestCase {
   public function testConfiguredSchemesAreListedAcrossSources(): void {
     $verifier = $this->verifier([
       [
-        'adapters' => ['a' => ['plugin' => 'remote_like', 'config' => []]],
+        'adapters' => ['a' => ['adapter' => 'remote_like', 'config' => []]],
         'bindings' => ['files' => ['adapter' => 'a'], 'cdn' => ['adapter' => 'a']],
       ],
       [
-        'adapters' => ['b' => ['plugin' => 'remote_like', 'config' => []]],
+        'adapters' => ['b' => ['adapter' => 'remote_like', 'config' => []]],
         'bindings' => ['other' => ['adapter' => 'b']],
       ],
     ]);
@@ -328,8 +328,8 @@ final class BindingVerifierTest extends TestCase {
     $verifier = $this->verifier([
       [
         'adapters' => [
-          'good' => ['plugin' => 'local', 'config' => ['root' => 'files']],
-          'ghost' => ['plugin' => 'no_such_plugin'],
+          'good' => ['adapter' => 'local', 'config' => ['root' => 'files']],
+          'ghost' => ['adapter' => 'no_such_plugin'],
         ],
         'bindings' => [
           'public' => ['adapter' => 'good'],

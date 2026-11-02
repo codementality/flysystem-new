@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The delete replay against the in-memory driver.
+ * The delete replay against the in-memory adapter.
  *
- * Same suite, one word: the driver is 'in_memory'. The two symlink
+ * Same suite, one word: the adapter is 'in_memory'. The two symlink
  * legs are skipped by name: their fixture is a real filesystem
  * symlink, which an in-memory binding has no disk surface to host.
  */
@@ -26,7 +26,7 @@ final class FileDeleteInMemoryTest extends FileDeleteReplay {
   /**
    * {@inheritdoc}
    */
-  protected function replayDriver(): string {
+  protected function replayAdapter(): string {
     return 'in_memory';
   }
 

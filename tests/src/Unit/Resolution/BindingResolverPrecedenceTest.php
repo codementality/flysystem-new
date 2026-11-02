@@ -89,7 +89,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
    */
   public static function precedenceProvider(): array {
     $local_def = [
-      'plugin' => 'local',
+      'adapter' => 'local',
       'config' => ['root' => 'sites/default/files'],
     ];
     $settings_main = [
@@ -108,7 +108,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         $settings_main,
         'public',
         [
-          'plugin' => 'local',
+          'adapter' => 'local',
           'config' => ['root' => 'sites/default/files'],
           'publicly_accessible' => TRUE,
         ],
@@ -121,7 +121,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [],
         'backup',
         [
-          'plugin' => 'local',
+          'adapter' => 'local',
           'config' => ['root' => 'sites/default/files'],
           'publicly_accessible' => FALSE,
         ],
@@ -130,7 +130,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [
           'adapters' => [
             'main' => [
-              'plugin' => 'local',
+              'adapter' => 'local',
               'config' => ['root' => 'settings-root'],
             ],
           ],
@@ -139,7 +139,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [
           'adapters' => [
             'other' => [
-              'plugin' => 'local',
+              'adapter' => 'local',
               'config' => ['root' => 'entity-root'],
             ],
           ],
@@ -147,7 +147,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         ],
         'public',
         [
-          'plugin' => 'local',
+          'adapter' => 'local',
           'config' => ['root' => 'settings-root'],
           'publicly_accessible' => TRUE,
         ],
@@ -156,7 +156,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [
           'adapters' => [
             'main' => [
-              'plugin' => 'local',
+              'adapter' => 'local',
               'config' => ['root' => 'from-settings', 'keep' => 'settings'],
             ],
           ],
@@ -165,7 +165,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [
           'adapters' => [
             'main' => [
-              'plugin' => 'local',
+              'adapter' => 'local',
               'config' => ['root' => 'from-entity', 'entity_only' => TRUE],
             ],
           ],
@@ -173,7 +173,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         ],
         'public',
         [
-          'plugin' => 'local',
+          'adapter' => 'local',
           'config' => [
             'root' => 'from-settings',
             'entity_only' => TRUE,
@@ -186,7 +186,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [
           'adapters' => [
             'main' => [
-              'plugin' => 'local',
+              'adapter' => 'local',
               'config' => ['root' => 'base', 'lazy' => TRUE],
             ],
           ],
@@ -200,7 +200,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [],
         'public',
         [
-          'plugin' => 'local',
+          'adapter' => 'local',
           'config' => ['root' => 'override', 'lazy' => TRUE],
           'publicly_accessible' => TRUE,
         ],
@@ -231,13 +231,13 @@ final class BindingResolverPrecedenceTest extends TestCase {
         [],
         [
           'adapters' => [
-            'cdn' => ['plugin' => 's3', 'config' => ['bucket' => 'x']],
+            'cdn' => ['adapter' => 's3', 'config' => ['bucket' => 'x']],
           ],
           'bindings' => ['public' => ['adapter' => 'cdn']],
         ],
         'public',
         [
-          'plugin' => 's3',
+          'adapter' => 's3',
           'config' => ['bucket' => 'x'],
           'publicly_accessible' => TRUE,
         ],
@@ -260,8 +260,8 @@ final class BindingResolverPrecedenceTest extends TestCase {
   public function testValidSchemeResolvesWhileBrokenOtherSchemeStillThrowsOnlyOnTouch(): void {
     $settings = [
       'adapters' => [
-        'main' => ['plugin' => 'local', 'config' => ['root' => 'inside']],
-        'bad' => ['plugin' => 'local', 'config' => ['root' => '/srv/outside']],
+        'main' => ['adapter' => 'local', 'config' => ['root' => 'inside']],
+        'bad' => ['adapter' => 'local', 'config' => ['root' => '/srv/outside']],
       ],
       'bindings' => [
         'public' => ['adapter' => 'main'],
@@ -281,7 +281,7 @@ final class BindingResolverPrecedenceTest extends TestCase {
   public function testUnknownPluginFailsAtResolutionOfTheTouchedScheme(): void {
     $this->expectException(UnknownAdapterPluginException::class);
     $layer = [
-      'adapters' => ['main' => ['plugin' => 'no_such_pkg']],
+      'adapters' => ['main' => ['adapter' => 'no_such_pkg']],
       'bindings' => ['public' => ['adapter' => 'main']],
     ];
     $this->resolver($layer, [])->resolve('public');
@@ -302,11 +302,11 @@ final class BindingResolverPrecedenceTest extends TestCase {
    */
   public function testRemoteBindingResolvesPubliclyWithExternalConfig(): void {
     $settings = [
-      'adapters' => ['cdn' => ['plugin' => 's3', 'config' => ['bucket' => 'outside-any-webroot']]],
+      'adapters' => ['cdn' => ['adapter' => 's3', 'config' => ['bucket' => 'outside-any-webroot']]],
       'bindings' => ['public' => ['adapter' => 'cdn']],
     ];
     $resolved = $this->resolver($settings, [])->resolve('public');
-    $this->assertSame('s3', $resolved['plugin'], 'The exemption follows the plugin-locality answer, not name guessing.');
+    $this->assertSame('s3', $resolved['adapter'], 'The exemption follows the plugin-locality answer, not name guessing.');
   }
 
 }

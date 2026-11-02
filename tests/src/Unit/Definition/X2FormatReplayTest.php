@@ -10,6 +10,7 @@ use Drupal\flysystem\Exception\InvalidSchemeNameException;
 use Drupal\flysystem\Exception\UnknownAdapterPluginException;
 use Drupal\flysystem\Resolution\BindingResolver;
 use Drupal\flysystem\Validation\SettingsValidator;
+use Drupal\Tests\flysystem\Traits\DeprecationCaptureTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
@@ -24,15 +25,17 @@ use PHPUnit\Framework\TestCase;
  * sources) — not paraphrased or invented. Keys the module does not
  * interpret (the 2.x cache/name/description family) stay inert inside
  * the adapter config; the plugin id rides through unchanged so a
- * renamed driver surfaces as an unknown-plugin error that names the
- * old word, which the upgrade documentation maps to its current
- * spelling. Scheme names keep the stricter grammar PHP registration
+ * renamed 2.x adapter spelling surfaces as an unknown-plugin error
+ * that names the old word, which the upgrade documentation maps to its
+ * current spelling. Scheme names keep the stricter grammar PHP registration
  * forces (2.x documented '+' and '.', which stream registration
  * cannot actually use).
  */
 #[Group('flysystem')]
 #[CoversNothing]
 final class X2FormatReplayTest extends TestCase {
+
+  use DeprecationCaptureTrait;
 
   /**
    * {@inheritdoc}
@@ -84,10 +87,14 @@ final class X2FormatReplayTest extends TestCase {
     ]);
 
     $source = new SettingsSource();
+    $adapters = [];
+    $this->captureDeprecations(function () use ($source, &$adapters): void {
+      $adapters = $source->getAdapterDefinitions();
+    });
 
     $this->assertSame([
       'local_example' => [
-        'plugin' => 'local',
+        'adapter' => 'local',
         'config' => [
           'root' => 'sites/default/files/flysystem',
           'public' => TRUE,
@@ -95,16 +102,19 @@ final class X2FormatReplayTest extends TestCase {
           'description' => 'Custom description',
         ],
       ],
-    ], $source->getAdapterDefinitions(), 'The 2.x entry presents as a local '
+    ], $adapters, 'The 2.x entry presents as a local '
       . 'adapter definition; keys this module does not interpret pass through '
       . 'inert.');
 
-    $resolved = $this->resolver()->resolve('local-example');
+    $resolved = NULL;
+    $this->captureDeprecations(function () use (&$resolved): void {
+      $resolved = $this->resolver()->resolve('local-example');
+    });
     $this->assertNotNull(
       $resolved,
       'The replayed entry resolves to a working definition.'
     );
-    $this->assertSame('local', $resolved['plugin']);
+    $this->assertSame('local', $resolved['adapter']);
     $this->assertTrue(
       $resolved['publicly_accessible'],
       'config[public] answers the flag exactly as the 2.x plugin read it.'
@@ -135,16 +145,21 @@ final class X2FormatReplayTest extends TestCase {
       ],
     ]);
 
-    $adapters = (new SettingsSource())->getAdapterDefinitions();
+    $adapters = [];
+    $this->captureDeprecations(function () use (&$adapters): void {
+      $adapters = (new SettingsSource())->getAdapterDefinitions();
+    });
     $this->assertSame(
       'ftp',
-      $adapters['ftpexample']['plugin'],
+      $adapters['ftpexample']['adapter'],
       'The 2.x driver word is carried through the layers unchanged.'
     );
 
     $this->expectException(UnknownAdapterPluginException::class);
     $this->expectExceptionMessageMatches('/ftp/');
-    $this->resolver()->resolve('ftpexample');
+    $this->captureDeprecations(function (): void {
+      $this->resolver()->resolve('ftpexample');
+    });
   }
 
   /**

@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The read-only replay against a local-driver binding.
+ * The read-only replay against a local-adapter binding.
  *
- * Same suite, one word: the driver is 'local'; the binding roots at a
+ * Same suite, one word: the adapter is 'local'; the binding roots at a
  * temporary directory, and the readable fixture is seeded under that
  * root's real path — the disk surface the read-only posture assumes.
  */
@@ -21,7 +21,7 @@ final class ReadOnlyLocalTest extends ReadOnlyLocalStorageReplay {
   /**
    * {@inheritdoc}
    */
-  protected function replayDriver(): string {
+  protected function replayAdapter(): string {
     return 'local';
   }
 

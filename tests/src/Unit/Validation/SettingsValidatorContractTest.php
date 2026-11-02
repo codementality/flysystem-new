@@ -55,7 +55,7 @@ final class SettingsValidatorContractTest extends TestCase {
    *   Adapter layer entry.
    */
   private static function localDefinition(string $root): array {
-    return ['plugin' => 'local', 'config' => ['root' => $root]];
+    return ['adapter' => 'local', 'config' => ['root' => $root]];
   }
 
   /**
@@ -223,7 +223,7 @@ final class SettingsValidatorContractTest extends TestCase {
         'public',
       ],
       'plugin not string' => [
-        ['adapters' => ['main' => ['plugin' => 123]], 'bindings' => $goodBinding],
+        ['adapters' => ['main' => ['adapter' => 123]], 'bindings' => $goodBinding],
         'public',
       ],
       'plugin missing' => [
@@ -231,7 +231,7 @@ final class SettingsValidatorContractTest extends TestCase {
         'public',
       ],
       'config not array' => [
-        ['adapters' => ['main' => ['plugin' => 'local', 'config' => 'oops']], 'bindings' => $goodBinding],
+        ['adapters' => ['main' => ['adapter' => 'local', 'config' => 'oops']], 'bindings' => $goodBinding],
         'public',
       ],
       'adapter key not string' => [
@@ -247,7 +247,7 @@ final class SettingsValidatorContractTest extends TestCase {
         'public',
       ],
       'root not string' => [
-        ['adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 42]]], 'bindings' => $goodBinding],
+        ['adapters' => ['main' => ['adapter' => 'local', 'config' => ['root' => 42]]], 'bindings' => $goodBinding],
         'public',
       ],
     ];
@@ -258,7 +258,7 @@ final class SettingsValidatorContractTest extends TestCase {
    */
   public function testBrokenUnreferencedSectionsDoNotAffectValidSchemes(): void {
     $layer = [
-      'adapters' => ['main' => self::localDefinition('sites/default/files'), 'bad_upper' => ['plugin' => 123]],
+      'adapters' => ['main' => self::localDefinition('sites/default/files'), 'bad_upper' => ['adapter' => 123]],
       'bindings' => ['public' => ['adapter' => 'main'], 'zoo' => 'garbage'],
     ];
     self::validator()->validateScheme('public', $layer);
@@ -283,7 +283,7 @@ final class SettingsValidatorContractTest extends TestCase {
   public function testUnknownPluginRejectedWithTypedException(): void {
     $this->expectException(UnknownAdapterPluginException::class);
     $this->expectExceptionMessageMatches('/cloud_no_such/');
-    $layer = self::layerFor('public', ['adapter' => 'main'], ['main' => ['plugin' => 'cloud_no_such']]);
+    $layer = self::layerFor('public', ['adapter' => 'main'], ['main' => ['adapter' => 'cloud_no_such']]);
     self::validator()->validateScheme('public', $layer);
   }
 
@@ -293,7 +293,7 @@ final class SettingsValidatorContractTest extends TestCase {
   public function testDefaultValidatorTreatsUnknownPluginsAsErrors(): void {
     $this->expectException(UnknownAdapterPluginException::class);
     $validator = new SettingsValidator(self::APP_ROOT);
-    $layer = self::layerFor('public', ['adapter' => 'main'], ['main' => ['plugin' => 's3']]);
+    $layer = self::layerFor('public', ['adapter' => 'main'], ['main' => ['adapter' => 's3']]);
     $validator->validateScheme('public', $layer);
   }
 
@@ -368,12 +368,12 @@ final class SettingsValidatorContractTest extends TestCase {
       ],
       'remote plugin is exempt from containment' => [
         $public,
-        ['main' => ['plugin' => 's3', 'config' => ['bucket' => 'anything-outside']]],
+        ['main' => ['adapter' => 's3', 'config' => ['bucket' => 'anything-outside']]],
         NULL,
       ],
       'public local with no root configured cannot be verified' => [
         $public,
-        ['main' => ['plugin' => 'local']],
+        ['main' => ['adapter' => 'local']],
         PublicRootOutsideWebrootException::class,
       ],
       'disabled binding skips containment' => [

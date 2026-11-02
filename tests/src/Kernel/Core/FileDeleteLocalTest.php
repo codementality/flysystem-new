@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The delete replay against a local-driver binding.
+ * The delete replay against a local-adapter binding.
  *
- * Same suite, one word: the driver is 'local'; the binding roots at a
+ * Same suite, one word: the adapter is 'local'; the binding roots at a
  * temporary directory; the symlink legs build their fixtures under
  * that root's real path.
  */
@@ -21,7 +21,7 @@ final class FileDeleteLocalTest extends FileDeleteLocalStorageReplay {
   /**
    * {@inheritdoc}
    */
-  protected function replayDriver(): string {
+  protected function replayAdapter(): string {
     return 'local';
   }
 

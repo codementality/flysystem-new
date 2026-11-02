@@ -23,7 +23,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
-final class InMemoryDriverRegistrationTest extends KernelTestBase {
+final class InMemoryAdapterRegistrationTest extends KernelTestBase {
 
   /**
    * {@inheritdoc}
@@ -37,14 +37,14 @@ final class InMemoryDriverRegistrationTest extends KernelTestBase {
     parent::setUp();
     // A scheme bound to the testing-only adapter.
     $this->setSetting('flysystem', [
-      'tmem' => ['driver' => 'in_memory'],
+      'tmem' => ['adapter' => 'in_memory'],
     ]);
   }
 
   /**
    * Both first-party adapters are discovered, and memory works.
    */
-  public function testInMemoryDriverRegisteredAndFunctional(): void {
+  public function testInMemoryAdapterRegisteredAndFunctional(): void {
     /** @var \Drupal\flysystem\Adapter\FlysystemAdapterManager $manager */
     $manager = $this->container->get('flysystem.adapter_manager');
     $this->assertInstanceOf(FlysystemAdapterManager::class, $manager);

@@ -51,7 +51,7 @@ final class FlysystemScaffoldContractTest extends TestCase {
    * The structural half of the adapter-agnostic promise: the builder
    * composes operators from adapter objects and configuration only —
    * its source must not contain a single quoted backend name, because
-   * a branch on a driver word anywhere in this module would silently
+   * a branch on an adapter word anywhere in this module would silently
    * unmake the one-word-swap property the kernel suite proves.
    */
   public function testBuilderCarriesNoBackendBranch(): void {

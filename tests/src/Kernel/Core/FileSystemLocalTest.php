@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The file-system replay against a local-driver binding.
+ * The file-system replay against a local-adapter binding.
  *
- * Same suite, one word: the driver is 'local'. Because the binding
+ * Same suite, one word: the adapter is 'local'. Because the binding
  * names an on-disk location, message expectations can embed the real
  * path of the sample file, exactly as core's body does.
  */
@@ -21,7 +21,7 @@ final class FileSystemLocalTest extends FileSystemLocalStorageReplay {
   /**
    * {@inheritdoc}
    */
-  protected function replayDriver(): string {
+  protected function replayAdapter(): string {
     return 'local';
   }
 
