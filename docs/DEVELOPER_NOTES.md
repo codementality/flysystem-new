@@ -46,7 +46,7 @@ final class Dropbox extends FlysystemAdapterBase {
 That class is the entire on-ramp: no service definitions, no tags, no
 registry edits. `FlysystemAdapterBase` carries the standard plugin
 constructor (configuration, id, definition), and the `id` is what
-sites write as `driver` in their settings — lowercase letters, digits,
+sites write as `adapter` in their settings — lowercase letters, digits,
 and underscores, following the upstream library's adapter slugs.
 
 Adapters needing container services implement
@@ -57,7 +57,7 @@ local adapter does this to receive the app root.
 
 If two modules declare the same adapter id, the later one discovered
 wins — and that is the design, not an accident. It lets a site's own
-module re-decide what a driver name means (a corrected implementation,
+module re-decide what an adapter name means (a corrected implementation,
 an environment-specific one) without touching any binding that
 references it. Do not build anything that assumes your id is claimed
 exclusively, and do not add duplicate-id validation to the base module.
@@ -65,7 +65,7 @@ exclusively, and do not add duplicate-id validation to the base module.
 ## How configuration reaches your plugin
 
 Sites configure storage in `settings.php` as one entry per scheme, each
-with a `driver` and a `config` array. Internally every configuration
+with an `adapter` and a `config` array. Internally every configuration
 source (settings now; config entities later) presents the same shape,
 and `BindingResolver` produces, per scheme, one merged definition:
 
@@ -124,7 +124,7 @@ not used.
 Adapters should ship tests proving: `isAvailable()` reports the truth
 about the backend's package; `adapter()` returns a working object —
 ideally proven through the real pipeline: a scheme bound to your
-driver in settings, a kernel test over the booted container, asserting
+adapter in settings, a kernel test over the booted container, asserting
 bytes round-trip through the operator the factory builds (in-memory or
 sandbox service, never production infrastructure); unknown config keys
 are ignored; and — where relevant — roots anchor to the app root and

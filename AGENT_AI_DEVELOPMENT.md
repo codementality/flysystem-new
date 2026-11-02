@@ -13,7 +13,7 @@ document is a bug.
 
 A storage-backend layer for Drupal's stream-wrapper schemes. A site
 binds scheme names (`public`, `private`, or any custom scheme) in
-`settings.php` to a named **driver** plus a configuration array. At
+`settings.php` to a named **adapter** plus a configuration array. At
 runtime a resolved binding produces a configured
 `League\Flysystem\FilesystemOperator` (Flysystem 3.x) — files keep
 using ordinary `public://path` URIs; this module decides where bytes
@@ -22,13 +22,13 @@ actually go.
 Storage backends are **Drupal plugins**: a contrib module ships one
 attributed class and its adapter exists exactly while that module is
 enabled. Nothing here keeps a registry of backends or branches on
-driver names.
+adapter names.
 
 **Current scope of this codebase.** The foundation is complete:
 adapter plugin system, binding resolution, settings validation, the
 operator factory, verification tooling, and a status report. The
 stream wrapper classes that intercept `public://` file operations at
-the PHP level, the remote-driver roster (S3, SFTP, …),
+the PHP level, the remote-adapter roster (S3, SFTP, …),
 config-entity-driven bindings, and admin UI are **later work built on
 this foundation — do not assume they exist.** Read `src/` to see what
 ships today.
@@ -45,7 +45,7 @@ src/Resolution/              BindingResolver: merged definitions.
 src/Validation/              SettingsValidator: typed, local errors.
 src/Factory/                 OperatorFactory: the operator seam.
 src/Verification/            Inspector, verifier, status report.
-src/Exception/               Typed errors naming scheme/driver.
+src/Exception/               Typed errors naming scheme/adapter.
 src/Util/                    LexicalPath: no realpath, no disk.
 modules/flysystem_memory/    Hidden test-only adapter module.
 tests/src/Unit/              Pure-logic tests.
@@ -66,13 +66,13 @@ README.md                    User-facing config guide.
    stays untouched.
 2. Validation is deferred to the touched scheme only: one bad
    sibling entry never breaks a working scheme.
-3. The resolved definition's `driver` names an adapter **plugin
+3. The resolved definition's `adapter` word names an adapter **plugin
    id**. `FlysystemAdapterManager::createInstance($id, $config)` —
    the plugin system builds the instance; module code never calls
    `new` on an adapter class.
 4. The plugin's `isAvailable()` is checked before anything is
    built; `FALSE` raises a typed, logged package-missing error
-   naming the driver.
+   naming the adapter.
 5. `$plugin->adapter()` returns the raw League adapter object; the
    factory alone wraps it in `new Filesystem($adapter, $options)`
    with the operation defaults (visibility, traversal posture)
@@ -96,14 +96,14 @@ README.md                    User-facing config guide.
 3. **Plugin ids are overridable names, not unique constraints.** If
    two modules declare the same id, the later one discovered wins —
    this is *deliberate*: it is the layering channel that lets a
-   site's own module re-decide what a driver name means (per
+   site's own module re-decide what an adapter name means (per
    deployment, per environment) without touching any binding that
    references it. Never add collision detection or
-   duplicate-driver validation. Data-plane validation stays loud;
+   duplicate-id validation. Data-plane validation stays loud;
    code-plane override is the feature.
-4. **Driver/id grammar is `^[a-z0-9_]+$`.** Names follow Flysystem's
+4. **Adapter id grammar is `^[a-z0-9_]+$`.** Names follow Flysystem's
    official-adapter slugs, converted to underscores (hyphens are not
-   legal). A hyphenated driver spelling in settings is rejected with
+   legal). A hyphenated adapter spelling in settings is rejected with
    a typed error naming the canonical underscore form
    (`tests/src/Unit/Validation/SettingsValidatorContractTest.php`).
 5. **Features are declared by marker interfaces, never by name
@@ -154,22 +154,22 @@ Canonical text is `README.md`. Shape, for orientation:
 ```php
 $settings['flysystem'] = [
   'public' => [
-    'driver' => 'local',
+    'adapter' => 'local',
     'config' => ['root' => 'files'],
   ],
   'private' => [
-    'driver' => 'local',
+    'adapter' => 'local',
     'config' => ['root' => '../private', 'public' => FALSE],
   ],
   'assets' => [
-    'driver' => 'local',
+    'adapter' => 'local',
     'config' => ['root' => 'assets'],
     'disabled' => TRUE,
   ],
 ];
 ```
 
-One entry per scheme; `driver` is the plugin id; `config` is opaque
+One entry per scheme; `adapter` is the plugin id; `config` is opaque
 to this module (your adapter owns its keys and must ignore unknown
 ones); `disabled` ignores the entry silently; `config['public']` is
 the canonical public-files flag. Legacy 2.x spellings inside
@@ -259,7 +259,7 @@ documented gaps.
   relative roots with `LexicalPath::resolve()` against the app root
   (the shipped local plugin is the full worked pattern). Ship
   tests: availability truth; a working operator through the factory
-  for a scheme bound to your driver; unknown config keys ignored;
+  for a scheme bound to your adapter; unknown config keys ignored;
   kernel discovery proof if your module is meant for others to
   enable.
 - **New validation rule:** `SettingsValidator` + a typed exception

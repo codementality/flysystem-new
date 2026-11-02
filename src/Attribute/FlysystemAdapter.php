@@ -16,7 +16,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
  * machine-name id, is discovered by the adapter manager, cached in the
  * discovery cache, alterable through the info hook, and instantiated
  * through the plugin factory — the same discovery model Search API
- * uses for its datasources and backends. The id doubles as the driver
+ * uses for its datasources and backends. The id doubles as the adapter
  * name a site writes in its settings, so one word names a backend
  * everywhere: attribute, definition, configuration.
  *
@@ -31,7 +31,7 @@ final class FlysystemAdapter extends Plugin {
    *
    * @param string $id
    *   The adapter machine name, written lowercase with underscores:
-   *   the same string a site uses as its 'driver' value.
+   *   the same string a site uses as its 'adapter' value.
    * @param \Drupal\Core\StringTranslation\TranslatableMarkup|null $label
    *   (optional) The human-readable name of the backend.
    * @param class-string|null $deriver

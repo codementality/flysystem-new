@@ -21,6 +21,17 @@ use Drupal\flysystem\Exception\InvalidSettingsStructureException;
 final class SettingsSource implements AdapterDefinitionSourceInterface {
 
   /**
+   * Schemes whose deprecated alias use has already been pointed out.
+   *
+   * One notice per scheme per source instance: the layer getters are
+   * called repeatedly within a request, and a pointer repeated on every
+   * read is noise that buries the message.
+   *
+   * @var array<string, bool>
+   */
+  private array $noticedAliases = [];
+
+  /**
    * {@inheritdoc}
    */
   public function getAdapterDefinitions(): array {
@@ -52,7 +63,7 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
       return [];
     }
     if (isset($layer['adapters']) || isset($layer['bindings'])) {
-      throw new InvalidSettingsStructureException('flysystem', "one entry per scheme, each carrying a string 'driver' (the two-section 'adapters'/'bindings' write form is not supported; the internal two-layer model is an implementation detail, not a configuration format)");
+      throw new InvalidSettingsStructureException('flysystem', "one entry per scheme, each carrying a string 'adapter' (the two-section 'adapters'/'bindings' write form is not supported; the internal two-layer model is an implementation detail, not a configuration format)");
     }
     return $this->normalizeFlat($layer);
   }
@@ -60,17 +71,17 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
   /**
    * Presents the flat form through the same two internal layers.
    *
-   * Scheme entries become adapter definitions ('driver' becomes 'plugin',
-   * 'config' passes through untouched — keys the module does not
-   * interpret stay inert) and scheme bindings to a deterministic
-   * sanitized adapter id. Collisions after sanitization gain numeric
-   * suffixes in sorted scheme order, so a configuration never silently
-   * loses a scheme. The binding option 'disabled' is copied when boolean;
-   * the boolean config['public'] answers the publicly-accessible
-   * question. An entry-level 'publicly_accessible' sibling — a spelling
-   * this module no longer recognizes — is recorded for the validator to
-   * reject lazily. Any other value is left inside the adapter config as
-   * inert data.
+   * Scheme entries become adapter definitions (the adapter word is
+   * carried into the definition, 'config' passes through untouched —
+   * keys the module does not interpret stay inert) and scheme bindings
+   * to a deterministic sanitized adapter id. Collisions after
+   * sanitization gain numeric suffixes in sorted scheme order, so a
+   * configuration never silently loses a scheme. The binding option
+   * 'disabled' is copied when boolean; the boolean config['public']
+   * answers the publicly-accessible question. An entry-level
+   * 'publicly_accessible' sibling — a spelling this module no longer
+   * recognizes — is recorded for the validator to reject lazily. Any
+   * other value is left inside the adapter config as inert data.
    *
    * @param array $layer
    *   The flat-form layer.
@@ -85,7 +96,36 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
     sort($schemes);
     foreach ($schemes as $scheme) {
       $entry = $layer[$scheme];
-      if (!is_array($entry) || !isset($entry['driver']) || !is_string($entry['driver'])) {
+      if (!is_array($entry)) {
+        continue;
+      }
+      // Deprecated-alias translation seam begin — the only place this
+      // module reads the 2.x-era spelling of the adapter word. Sites
+      // written against the old module keep resolving unchanged through
+      // it, and every use gets one machine-readable pointer to the
+      // current spelling: presence of the old key notices, whether or
+      // not it can resolve. The canonical key wins when both are
+      // present; neither word resolving to a string presents no
+      // definition, leaving precise complaints to the validator.
+      if (array_key_exists('driver', $entry) && !isset($this->noticedAliases[$scheme])) {
+        $this->noticedAliases[$scheme] = TRUE;
+        // The See-URL in the notice points at this module's development
+        // tracker issue, not an invented drupal.org number.
+        @trigger_error(
+          // phpcs:ignore Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat
+          sprintf("The 'flysystem' 'driver' settings key (scheme '%s') is deprecated in flysystem:4.0.0 and is removed from flysystem:5.0.0. Rename the key to 'adapter'. See https://github.com/codementality/flysystem-new/issues/66.", $scheme),
+          E_USER_DEPRECATED
+        );
+      }
+      $adapter_word = NULL;
+      if (isset($entry['adapter']) && is_string($entry['adapter'])) {
+        $adapter_word = $entry['adapter'];
+      }
+      elseif (isset($entry['driver']) && is_string($entry['driver'])) {
+        $adapter_word = $entry['driver'];
+      }
+      // Deprecated-alias translation seam end.
+      if ($adapter_word === NULL) {
         continue;
       }
       $config = is_array($entry['config'] ?? NULL) ? $entry['config'] : [];
@@ -103,7 +143,7 @@ final class SettingsSource implements AdapterDefinitionSourceInterface {
         $suffix++;
       }
       $adapters[$id] = [
-        'plugin' => $entry['driver'],
+        'adapter' => $adapter_word,
         'config' => $config,
       ];
       $binding = ['adapter' => $id];

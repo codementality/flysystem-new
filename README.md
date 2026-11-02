@@ -17,13 +17,13 @@ to use and where the files live:
 ```php
 $settings['flysystem'] = [
   'public' => [
-    'driver' => 'local',
+    'adapter' => 'local',
     'config' => [
       'root' => 'sites/default/files',
     ],
   ],
   'private' => [
-    'driver' => 'local',
+    'adapter' => 'local',
     'config' => [
       'root' => '../private-files',
     ],
@@ -42,7 +42,7 @@ path that starts with `/` is an exact location on the server.
 
 For each path:
 
-- **`driver`** — which storage to use. Out of the box: `local` (a
+- **`adapter`** — which storage to use. Out of the box: `local` (a
   folder on the server). Other storage types (Amazon S3 and similar)
   arrive as separate modules you can enable.
 - **`config`** — the storage's own settings. For `local`, that means
@@ -74,16 +74,23 @@ without any extra work.
 ## Upgrading from the old (2.x) version of this module
 
 Your existing `$settings['flysystem']` entries keep their shape —
-scheme-keyed entries with `driver`, `config`, and the `public` flag
-inside `config` are read exactly as the 2.x module read them. Two
+scheme-keyed entries with `config` and the `public` flag inside `config`
+are read as the 2.x module read them. One word changed spelling, and two
 remote storage names changed to follow the storage library's own
-documentation, and one entry-level spelling is now rejected; everything
-else is untouched:
+documentation; one entry-level spelling is now rejected. Everything else
+is untouched:
 
-- **`driver` names for remote storage** — `s3` is now written
+- **Terminology change from 2.x: the `driver` key must be written
+  `adapter`** — the module now uses the storage library's own word for
+  these backends. Entries still written with `driver` keep working: the
+  old spelling resolves exactly as before and emits a deprecation notice
+  naming `adapter`, so you can fix each entry with a machine-readable
+  pointer instead of hunting for it. Dropping support for the old
+  spelling is a future major-version decision.
+- **`adapter` names for remote storage** — `s3` is now written
   `aws_s3_v3`, and `sftp` is now written `sftp_v3`. One word in the
-  `driver` line; the rest of the entry keeps its shape.
-- **`publicly_accessible` as a sibling of `driver`** — the flag lives
+  adapter line; the rest of the entry keeps its shape.
+- **`publicly_accessible` as an entry-level sibling** — the flag lives
   inside `config` as `public`, the spelling 2.x itself used. Writing
   the sibling produces an error that names the recognized key.
 

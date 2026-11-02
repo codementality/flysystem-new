@@ -101,12 +101,12 @@ final class OperatorFactory {
       return NULL;
     }
 
-    $plugin_id = $definition['plugin'];
+    $plugin_id = $definition['adapter'];
     $config = $definition['config'];
     $config['allow_relative_path_traversal'] = ($this->isLocalMode)($plugin_id) ? TRUE : FALSE;
 
     $key = $this->definitionChecksum([
-      'plugin' => $plugin_id,
+      'adapter' => $plugin_id,
       'config' => $config,
     ]);
     if (!isset($this->operators[$key])) {
