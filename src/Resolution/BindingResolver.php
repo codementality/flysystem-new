@@ -80,7 +80,7 @@ class BindingResolver {
    * @param string $scheme
    *   The scheme being resolved.
    *
-   * @return array{plugin: string, config: array, publicly_accessible: bool}|null
+   * @return array{adapter: string, config: array, publicly_accessible: bool}|null
    *   The merged definition to hand to the plugin, or NULL when the
    *   scheme resolves to core-native (unbound or disabled).
    *
@@ -140,7 +140,7 @@ class BindingResolver {
     );
 
     return [
-      'plugin' => $definition['plugin'],
+      'adapter' => $definition['adapter'],
       'config' => $config,
       'publicly_accessible' => $binding['publicly_accessible'] ?? ($scheme === SettingsValidator::PUBLIC_SCHEME),
     ];

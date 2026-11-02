@@ -42,7 +42,7 @@ trait DefinitionChecksumTrait {
    * Returns the hex identity digest of a merged definition.
    *
    * @param array $definition
-   *   A resolved definition array, conventionally with a 'plugin' key
+   *   A resolved definition array, conventionally with an 'adapter' key
    *   and an optional 'config' mapping.
    *
    * @return string

@@ -16,7 +16,7 @@ namespace Drupal\flysystem\Definition;
  *
  * Canonical layer shape (as produced by settings.php, and by any other
  * definition source):
- * - adapters: array keyed by adapter id, each with keys 'plugin' (string)
+ * - adapters: array keyed by adapter id, each with keys 'adapter' (string)
  *   and optional 'config' (array).
  * - bindings: array keyed by scheme, each with key 'adapter' (string) and
  *   optional keys 'config' (array), 'disabled' (bool), and

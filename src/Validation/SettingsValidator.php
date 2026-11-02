@@ -141,11 +141,11 @@ final class SettingsValidator {
 
     $defPath = sprintf('adapters[%s]', $adapterId);
     if (!is_array($definition)) {
-      throw new InvalidSettingsStructureException($defPath, 'an array with a plugin key');
+      throw new InvalidSettingsStructureException($defPath, 'an array with an adapter key');
     }
     $this->validateDefinitionShape($defPath, $definition);
 
-    $plugin = $definition['plugin'];
+    $plugin = $definition['adapter'];
     $isLocal = ($this->isLocalMode)($plugin);
     if ($isLocal === NULL) {
       throw new UnknownAdapterPluginException($plugin, $adapterId);
@@ -205,7 +205,7 @@ final class SettingsValidator {
       }
       $defPath = sprintf('adapters[%s]', $adapterId);
       if (!is_array($definition)) {
-        throw new InvalidSettingsStructureException($defPath, 'an array with a plugin key');
+        throw new InvalidSettingsStructureException($defPath, 'an array with an adapter key');
       }
       $this->validateDefinitionShape($defPath, $definition);
     }
@@ -257,8 +257,8 @@ final class SettingsValidator {
    *   The adapter definition entry.
    */
   private function validateDefinitionShape(string $path, array $definition): void {
-    if (!isset($definition['plugin']) || !is_string($definition['plugin'])) {
-      throw new InvalidSettingsStructureException($path . '[plugin]', 'a string plugin id');
+    if (!isset($definition['adapter']) || !is_string($definition['adapter'])) {
+      throw new InvalidSettingsStructureException($path . '[adapter]', 'a string adapter plugin id');
     }
     if (array_key_exists('config', $definition) && !is_array($definition['config'])) {
       throw new InvalidSettingsStructureException($path . '[config]', 'an array');
