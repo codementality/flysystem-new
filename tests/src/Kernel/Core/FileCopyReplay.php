@@ -7,8 +7,6 @@ namespace Drupal\Tests\flysystem\Kernel\Core;
 use Drupal\Core\File\Exception\FileExistsException;
 use Drupal\Core\File\Exception\FileNotExistsException;
 use Drupal\Core\File\FileExists;
-use Drupal\Core\File\FileSystem;
-use Drupal\Core\Site\Settings;
 
 /**
  * Replayed from core's FileCopyTest, scheme-parameterized.
@@ -38,9 +36,6 @@ abstract class FileCopyReplay extends FileReplayBase {
     $this->assertEquals($desired_filepath, $new_filepath, 'Returned expected filepath.');
     $this->assertFileExists($uri);
     $this->assertFileExists($new_filepath);
-    if ($this->replayIsLocalStorage()) {
-      $this->assertFilePermissions($new_filepath, Settings::get('file_chmod_file', FileSystem::CHMOD_FILE));
-    }
 
     // Copying with rename.
     $desired_filepath = $this->uri($this->uploadName());
@@ -50,9 +45,6 @@ abstract class FileCopyReplay extends FileReplayBase {
     $this->assertNotEquals($desired_filepath, $newer_filepath, 'Returned expected filepath.');
     $this->assertFileExists($uri);
     $this->assertFileExists($newer_filepath);
-    if ($this->replayIsLocalStorage()) {
-      $this->assertFilePermissions($newer_filepath, Settings::get('file_chmod_file', FileSystem::CHMOD_FILE));
-    }
 
     // @todo Test copying to a directory (rather than full directory/file path)
     // @todo Test copying normal files using normal paths (rather than only streams)
@@ -88,9 +80,6 @@ abstract class FileCopyReplay extends FileReplayBase {
     $this->assertNotEquals($uri, $new_filepath, 'Copied file has a new name.');
     $this->assertFileExists($uri);
     $this->assertFileExists($new_filepath);
-    if ($this->replayIsLocalStorage()) {
-      $this->assertFilePermissions($new_filepath, Settings::get('file_chmod_file', FileSystem::CHMOD_FILE));
-    }
 
     // Copy the file onto itself without renaming fails.
     $this->expectException(FileExistsException::class);
@@ -109,9 +98,6 @@ abstract class FileCopyReplay extends FileReplayBase {
     $this->assertNotEquals($uri, $new_filepath, 'Copied file has a new name.');
     $this->assertFileExists($uri);
     $this->assertFileExists($new_filepath);
-    if ($this->replayIsLocalStorage()) {
-      $this->assertFilePermissions($new_filepath, Settings::get('file_chmod_file', FileSystem::CHMOD_FILE));
-    }
   }
 
 }

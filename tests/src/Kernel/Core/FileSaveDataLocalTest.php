@@ -15,7 +15,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
-final class FileSaveDataLocalTest extends FileSaveDataReplay {
+final class FileSaveDataLocalTest extends FileSaveDataLocalStorageReplay {
 
   /**
    * {@inheritdoc}

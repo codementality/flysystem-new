@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
-final class FileSystemLocalTest extends FileSystemReplay {
+final class FileSystemLocalTest extends FileSystemLocalStorageReplay {
 
   /**
    * {@inheritdoc}
@@ -37,13 +37,6 @@ final class FileSystemLocalTest extends FileSystemReplay {
    */
   protected function replayConfig(): array {
     return ['root' => $this->replayRoot];
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function replaySampleRealPath(string $path): ?string {
-    return $this->realPath($path);
   }
 
 }

@@ -37,18 +37,4 @@ final class FileDeleteInMemoryTest extends FileDeleteReplay {
     return FALSE;
   }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function testSymlinkDirectory(): void {
-    $this->markTestSkipped('Fixture requires a real filesystem; this leg pins the local-storage posture.');
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function testSymlinkDirectoryStreamWrappers(): void {
-    $this->markTestSkipped('Fixture requires a real filesystem; this leg pins the local-storage posture.');
-  }
-
 }

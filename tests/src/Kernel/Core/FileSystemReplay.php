@@ -59,14 +59,12 @@ abstract class FileSystemReplay extends FileReplayBase {
     // host's binding.
     $source = $this->uri('test.txt');
     $this->expectException(FileNotExistsException::class);
-    $real = $this->replaySampleRealPath('test.txt');
-    if ($real !== NULL) {
-      $this->expectExceptionMessage("File '$source' ('$real') could not be copied because it does not exist");
-    }
-    else {
-      $this->expectExceptionMessage("File '$source'");
-    }
+    $this->expectExceptionMessage("could not be copied because it does not exist");
 
+    // The call below IS the assertion: copy() must throw for a
+    // missing source. If it returns instead, the test fails with
+    // "expected exception not thrown". The local tier additionally
+    // pins the full message including the resolved path.
     $this->fileSystem->copy($source, $this->uri('test-copy.txt'));
   }
 
@@ -83,8 +81,9 @@ abstract class FileSystemReplay extends FileReplayBase {
     $this->expectExceptionMessage("The specified file '$source' could not be copied because the destination directory '{$this->uri('subdirectory')}' is not properly configured. This may be caused by a problem with file or directory permissions.");
     touch($source);
     // The subdirectory under the scheme under test has not been
-    // created, so prepareDirectory() fails, causing copy() to throw
-    // DirectoryNotReadyException.
+    // created, so prepareDirectory() fails, causing the copy below
+    // to throw DirectoryNotReadyException. The copy call is the
+    // assertion; a return would fail the test.
     $this->fileSystem->copy($source, $destination);
   }
 
@@ -97,6 +96,8 @@ abstract class FileSystemReplay extends FileReplayBase {
     $this->expectException(FileExistsException::class);
     $this->expectExceptionMessage("File '$uri' could not be copied because a file by that name already exists in the destination directory ('')");
     touch($uri);
+    // The assertion: copying onto an existing name with
+    // FileExists::Error must throw; returning would fail the test.
     $this->fileSystem->copy($uri, $uri, FileExists::Error);
   }
 

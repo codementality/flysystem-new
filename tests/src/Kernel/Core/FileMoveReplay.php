@@ -7,8 +7,6 @@ namespace Drupal\Tests\flysystem\Kernel\Core;
 use Drupal\Core\File\Exception\FileException;
 use Drupal\Core\File\Exception\FileNotExistsException;
 use Drupal\Core\File\FileExists;
-use Drupal\Core\File\FileSystem;
-use Drupal\Core\Site\Settings;
 
 /**
  * Replayed from core's FileMoveTest, scheme-parameterized.
@@ -38,9 +36,6 @@ abstract class FileMoveReplay extends FileReplayBase {
     $this->assertEquals($desired_filepath, $new_filepath, 'Returned expected filepath.');
     $this->assertFileExists($new_filepath);
     $this->assertFileDoesNotExist($uri);
-    if ($this->replayIsLocalStorage()) {
-      $this->assertFilePermissions($new_filepath, Settings::get('file_chmod_file', FileSystem::CHMOD_FILE));
-    }
 
     // Moving with rename.
     $desired_filepath = $this->uri($this->uploadName());
@@ -51,9 +46,6 @@ abstract class FileMoveReplay extends FileReplayBase {
     $this->assertNotEquals($desired_filepath, $newer_filepath, 'Returned expected filepath.');
     $this->assertFileExists($newer_filepath);
     $this->assertFileDoesNotExist($new_filepath);
-    if ($this->replayIsLocalStorage()) {
-      $this->assertFilePermissions($newer_filepath, Settings::get('file_chmod_file', FileSystem::CHMOD_FILE));
-    }
 
     // @todo Test moving to a directory (rather than full directory/file path)
     // @todo Test creating and moving normal files (rather than streams)

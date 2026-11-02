@@ -94,25 +94,6 @@ abstract class DirectoryReplay extends FileReplayBase {
 
     // Make sure directory actually exists.
     $this->assertDirectoryExists($directory);
-    $file_system = $this->container->get('file_system');
-    if (!str_starts_with(PHP_OS, 'WIN') && $this->replayIsLocalStorage()) {
-      // PHP on Windows doesn't support any kind of useful read-only mode
-      // for directories. When executing a chmod() on a directory, PHP only
-      // sets the read-only flag, which doesn't prevent files to actually be
-      // written in the directory on any recent version of Windows. A
-      // non-local binding declares no on-disk mode either.
-      // Make directory read only.
-      @$file_system->chmod($directory, 0444);
-      $this->assertFalse($file_system->prepareDirectory($directory, 0), 'Error reported for a non-writable directory.');
-
-      // Test directory permission modification.
-      $this->setSetting('file_chmod_directory', 0777);
-      $this->assertTrue($file_system->prepareDirectory($directory, FileSystemInterface::MODIFY_PERMISSIONS), 'No error reported when making directory writable.');
-
-      // Test that the directory has the correct permissions.
-      $this->assertDirectoryPermissions($directory, 0777, 'file_chmod_directory setting is respected.');
-    }
-
     // Remove .htaccess file to then test that it gets re-created. The
     // htaccess writer protects the public files directory; these legs
     // stay on core's own scheme as parity floor.

@@ -32,9 +32,6 @@ abstract class FileSaveDataReplay extends FileReplayBase {
     $this->assertNotFalse($filepath, 'Unnamed file saved correctly.');
     $this->assertEquals('asdf.txt', basename($filepath), 'File was named correctly.');
     $this->assertEquals($contents, file_get_contents($filepath), 'Contents of the file are correct.');
-    if ($this->replayIsLocalStorage()) {
-      $this->assertFilePermissions($filepath, 0777);
-    }
   }
 
 }

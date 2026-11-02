@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
-final class FileDeleteLocalTest extends FileDeleteReplay {
+final class FileDeleteLocalTest extends FileDeleteLocalStorageReplay {
 
   /**
    * {@inheritdoc}

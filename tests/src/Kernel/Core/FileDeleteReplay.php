@@ -10,11 +10,10 @@ use Drupal\Core\File\Exception\NotRegularFileException;
  * Replayed from core's FileDeleteTest, scheme-parameterized.
  *
  * Every URI names the scheme under test, so the delete legs dispatch
- * to the subject wrapper and go red against the stub's refusals. The
- * two legs that build symlinks are meaningful only against a real
- * filesystem: the local host runs them with links built under the
- * bound root's real path, and the in-memory host skips them by name
- * because an in-memory binding has no disk surface to link into.
+ * to the subject wrapper and go red against the stub's refusals.
+ * Symlink fixtures are a property of local filesystems only and live
+ * at the local tier (FileDeleteLocalStorageReplay), inherited by the
+ * local host alone — no conditional legs, no skips.
  */
 abstract class FileDeleteReplay extends FileReplayBase {
 
@@ -48,7 +47,12 @@ abstract class FileDeleteReplay extends FileReplayBase {
     // A directory to operate on.
     $directory = $this->createDirectory();
 
-    // Try to delete a directory.
+    // What this leg tests, in both halves: delete() must REFUSE a
+    // directory (NotRegularFileException; if the call below returns
+    // instead, fail() ends the test), AND the refusal must leave the
+    // directory intact. expectException() cannot express the second
+    // half — the method stops at the first assertion — hence the
+    // explicit try/catch, copied from core's corpus.
     try {
       $this->container->get('file_system')->delete($directory);
       $this->fail('Expected NotRegularFileException');
@@ -57,67 +61,6 @@ abstract class FileDeleteReplay extends FileReplayBase {
       // Ignore.
     }
     $this->assertDirectoryExists($directory);
-  }
-
-  /**
-   * Tests deleting a symlink to a directory.
-   */
-  public function testSymlinkDirectory(): void {
-    $this->assertDispatchIsLive();
-    // A directory to operate on.
-    $path = $this->randomMachineName();
-    $this->createDirectory($path);
-    $directory = $this->realPath($path);
-    $link = $this->realPath($this->randomMachineName());
-    symlink($directory, $link);
-    $this->assertDirectoryExists($link);
-
-    $this->container->get('file_system')->delete($link);
-    $this->assertDirectoryExists($directory);
-    $this->assertDirectoryDoesNotExist($link);
-  }
-
-  /**
-   * Tests deleting using a symlinked directory using stream wrappers.
-   *
-   * Note that this does not work because the path will be resolved to
-   * the real path in the stream wrapper and not the link.
-   */
-  public function testSymlinkDirectoryStreamWrappers(): void {
-    $this->assertDispatchIsLive();
-    // A directory to operate on.
-    $path = $this->randomMachineName();
-    $this->createDirectory($path);
-    $link = $this->uri($this->randomMachineName());
-    symlink($this->realPath($path), $this->realPath(basename($link)));
-    $this->assertDirectoryExists($link);
-
-    $this->expectExceptionMessage("Cannot delete '$link' because it is a directory. Use deleteRecursive() instead.");
-    $this->expectException(NotRegularFileException::class);
-    $this->container->get('file_system')->delete($link);
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * The core corpus base for these tests runs against real site
-   * directories, and two legs in this suite build filesystem symlinks
-   * and resolve realpaths. A real (non-virtual) site directory is the
-   * posture those legs assume, so this suite installs one, exactly as
-   * the corpus base does.
-   */
-  protected function setUpFilesystem() {
-    $public_file_directory = $this->siteDirectory . '/files';
-    $private_file_directory = $this->siteDirectory . '/private';
-
-    mkdir($this->siteDirectory, 0775);
-    mkdir($this->siteDirectory . '/files', 0775);
-    mkdir($this->siteDirectory . '/private', 0775);
-    mkdir($this->siteDirectory . '/files/config/sync', 0775, TRUE);
-
-    $this->setSetting('file_public_path', $public_file_directory);
-    $this->setSetting('file_private_path', $private_file_directory);
-    $this->setSetting('config_sync_directory', $this->siteDirectory . '/files/config/sync');
   }
 
 }

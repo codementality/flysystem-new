@@ -146,6 +146,9 @@ abstract class FileReplayBase extends KernelTestBase {
    *   The absolute path.
    */
   protected function realPath(string $path): string {
+    if (!$this->replayIsLocalStorage()) {
+      throw new \LogicException('realPath() is reserved for local-storage hosts: a non-local binding has no path on this machine to name. Local-only fixtures live in the local-tier abstract suites, which are the only callers.');
+    }
     return $this->replayRoot . '/' . ltrim($path, '/');
   }
 
@@ -159,14 +162,14 @@ abstract class FileReplayBase extends KernelTestBase {
    * whether or not those implementations exist yet.
    */
   protected function assertDispatchIsLive(): void {
-    self::assertContains(
+    $this->assertContains(
       $this->scheme,
       stream_get_wrappers(),
       "The replay scheme must be registered with PHP before any leg runs."
     );
     DispatchProbedStreamWrapper::resetJournal();
     @fopen($this->uri('dispatch-probe'), 'r');
-    self::assertNotEmpty(
+    $this->assertNotEmpty(
       DispatchProbedStreamWrapper::journal(),
       'The engine must actually dispatch this scheme to the subject wrapper — an empty journal means every later assertion in this test would pass vacuously.'
     );
@@ -200,7 +203,7 @@ abstract class FileReplayBase extends KernelTestBase {
     $path ??= 'Файл_для_тестирования_' . $this->randomMachineName() . '.txt';
     $uri = $this->uri($path);
     file_put_contents($uri, $contents ?? "file_put_contents() doesn't seem to appreciate empty strings so let's put in some data.");
-    self::assertFileExists($uri);
+    $this->assertFileExists($uri);
     return $uri;
   }
 
@@ -225,8 +228,8 @@ abstract class FileReplayBase extends KernelTestBase {
    */
   protected function createDirectory(?string $path = NULL): string {
     $uri = $this->uri($path ?? $this->randomMachineName());
-    self::assertTrue($this->container->get('file_system')->mkdir($uri));
-    self::assertDirectoryExists($uri);
+    $this->assertTrue($this->container->get('file_system')->mkdir($uri));
+    $this->assertDirectoryExists($uri);
     return $uri;
   }
 
@@ -246,7 +249,7 @@ abstract class FileReplayBase extends KernelTestBase {
     if (!isset($message)) {
       $message = sprintf('Expected file permission to be %s, actually were %s.', decoct($actual_mode), decoct($expected_mode));
     }
-    self::assertEquals($expected_mode, $actual_mode, $message);
+    $this->assertEquals($expected_mode, $actual_mode, $message);
   }
 
   /**
@@ -265,28 +268,7 @@ abstract class FileReplayBase extends KernelTestBase {
     if (!isset($message)) {
       $message = sprintf('Expected directory permission to be %s, actually were %s.', decoct($expected_mode), decoct($actual_mode));
     }
-    self::assertEquals($expected_mode, $actual_mode, $message);
-  }
-
-  /**
-   * The on-disk path a binding would report for one sample file.
-   *
-   * Core's exception messages sometimes embed the resolved path of a
-   * stream URI. That is only a truth to assert against when this
-   * host's binding names an on-disk location; for a non-local binding
-   * the wrapper's realpath answer is the wrapper's own, not a path on
-   * disk, so NULL tells the suite to assert the exception class and
-   * the URI-containing prefix of the message instead. Local hosts
-   * override this to return the real path of the sample file.
-   *
-   * @param string $path
-   *   The path inside the bound root.
-   *
-   * @return string|null
-   *   The on-disk path, or NULL when the binding has none.
-   */
-  protected function replaySampleRealPath(string $path): ?string {
-    return NULL;
+    $this->assertEquals($expected_mode, $actual_mode, $message);
   }
 
 }

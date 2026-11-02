@@ -236,6 +236,12 @@ abstract class ScanDirectoryReplay extends FileReplayBase {
    * Stands in for the file_test module's helper in core's own body; the
    * replay suite carries no file_test dependency.
    *
+   * Static by necessity, not by habit: scanDirectory invokes the
+   * callback as a callable string — no object exists at that moment —
+   * and every invocation during one scan must accumulate into the
+   * same recorder. That is why callers reference it through self::,
+   * which is the correct syntax for a static method.
+   *
    * @param mixed $filepath
    *   The scanned file; when NULL the recorded list is returned.
    * @param bool $reset
