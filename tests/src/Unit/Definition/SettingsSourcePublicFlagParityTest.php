@@ -72,14 +72,14 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
     new Settings([
       'flysystem' => [
         'assets' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'config' => [
             'root' => 'sites/default/files/assets',
             'public' => TRUE,
           ],
         ],
         'archive' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'config' => [
             'root' => 'sites/default/files/archive',
             'public' => FALSE,
@@ -110,14 +110,14 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
     new Settings([
       'flysystem' => [
         'cdn' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'config' => [
             'root' => 'sites/default/files/cdn',
           ],
           'publicly_accessible' => TRUE,
         ],
         'other' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'config' => [
             'root' => 'sites/default/files/other',
             'public' => TRUE,
@@ -146,7 +146,7 @@ final class SettingsSourcePublicFlagParityTest extends TestCase {
     new Settings([
       'flysystem' => [
         'old' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'config' => [
             'root' => 'sites/default/files/old',
           ],

@@ -119,7 +119,7 @@ final class OperatorFactoryTest extends TestCase {
    */
   private function localAdapters(string $plugin, string|array $root): array {
     return [
-      'plugin' => $plugin,
+      'adapter' => $plugin,
       'config' => ['root' => $root],
     ];
   }
@@ -234,7 +234,7 @@ final class OperatorFactoryTest extends TestCase {
     $factory = $this->factory([
       'adapters' => [
         'main' => $this->localAdapters('local', 'ok'),
-        'bad' => ['plugin' => 'no_such_package'],
+        'bad' => ['adapter' => 'no_such_package'],
       ],
       'bindings' => [
         'public' => ['adapter' => 'main'],
@@ -324,7 +324,7 @@ final class OperatorFactoryTest extends TestCase {
     $factory = $this->factory([
       'adapters' => [
         'cdn' => [
-          'plugin' => 'remote_fixture',
+          'adapter' => 'remote_fixture',
           'config' => ['bucket' => 'anything'],
         ],
       ],
@@ -366,7 +366,7 @@ final class OperatorFactoryTest extends TestCase {
   public function testMissingPackageThrowsTypedExceptionNamingThePlugin(): void {
     $factory = $this->factory([
       'adapters' => [
-        'needs_pkg' => ['plugin' => 'unavailable_fixture', 'config' => []],
+        'needs_pkg' => ['adapter' => 'unavailable_fixture', 'config' => []],
       ],
       'bindings' => ['store' => ['adapter' => 'needs_pkg']],
     ]);

@@ -62,7 +62,7 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
     $resolver = $this->resolver([
       'adapters' => [
         'main' => [
-          'plugin' => 'local',
+          'adapter' => 'local',
           'config' => ['root' => 'files'],
         ],
       ],
@@ -88,7 +88,7 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
     $resolver = $this->resolver([
       'adapters' => [
         'main' => [
-          'plugin' => 'local',
+          'adapter' => 'local',
           'config' => ['root' => 'sites/default/files'],
         ],
       ],
@@ -107,7 +107,7 @@ final class BindingResolverDisabledSemanticsTest extends TestCase {
       $resolved,
       'A well-formed scheme resolves normally regardless of a parked entry.'
     );
-    $this->assertSame('local', $resolved['plugin']);
+    $this->assertSame('local', $resolved['adapter']);
   }
 
   /**

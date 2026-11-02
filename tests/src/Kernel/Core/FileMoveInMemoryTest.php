@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The move replay against the in-memory driver.
+ * The move replay against the in-memory adapter.
  *
- * Same suite, one word: the driver is 'in_memory'. Mode-policy legs
+ * Same suite, one word: the adapter is 'in_memory'. Mode-policy legs
  * are local-storage declarations and are not claimed here.
  */
 #[Group('flysystem')]
@@ -25,7 +25,7 @@ final class FileMoveInMemoryTest extends FileMoveReplay {
   /**
    * {@inheritdoc}
    */
-  protected function replayDriver(): string {
+  protected function replayAdapter(): string {
     return 'in_memory';
   }
 

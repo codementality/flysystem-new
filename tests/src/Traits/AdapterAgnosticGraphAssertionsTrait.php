@@ -12,7 +12,7 @@ use League\Flysystem\PathTraversalDetected;
  * The adapter-agnostic assertion base for the filesystem service graph.
  *
  * Every host kernel test calls the full set through runGraphAssertions()
- * after configuring exactly one thing differently: which driver word its
+ * after configuring exactly one thing differently: which adapter word its
  * scheme binding carries (and the marker-declared posture that follows).
  * The suite's meaning is this: if the same legs pass on a local-backed,
  * a memory-backed, and a contrib-fixture-backed operator, the graph is
@@ -33,7 +33,7 @@ trait AdapterAgnosticGraphAssertionsTrait {
     $this->legRoundTrip();
     $this->legMemoization();
     $this->legUnboundIsNative();
-    $this->legUnknownDriverTypedError();
+    $this->legUnknownAdapterTypedError();
     $this->legLeadingEscapeThrows();
     $this->legPostureFollowsDeclaration($interiorTraversalResolves);
   }
@@ -92,16 +92,16 @@ trait AdapterAgnosticGraphAssertionsTrait {
   }
 
   /**
-   * A binding to an unknown driver fails late, typed, naming the driver.
+   * A binding to an unknown adapter fails late, typed, naming the adapter.
    */
-  protected function legUnknownDriverTypedError(): void {
+  protected function legUnknownAdapterTypedError(): void {
     $factory = $this->container->get('flysystem.operator_factory');
     try {
       $factory->operatorFor('graph-ghost');
-      $this->fail('A ghost driver must raise the typed unknown-plugin error when touched.');
+      $this->fail('A ghost adapter must raise the typed unknown-plugin error when touched.');
     }
     catch (UnknownAdapterPluginException $e) {
-      $this->assertStringContainsString('ghost_driver', $e->getMessage(), 'The typed error names the offending driver.');
+      $this->assertStringContainsString('ghost_adapter', $e->getMessage(), 'The typed error names the offending adapter.');
     }
   }
 

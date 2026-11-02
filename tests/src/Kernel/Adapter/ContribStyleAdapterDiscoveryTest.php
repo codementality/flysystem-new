@@ -41,9 +41,9 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
-    // A scheme bound to the contributed driver, settings-carried like any.
+    // A scheme bound to the contributed adapter, settings-carried like any.
     $this->setSetting('flysystem', [
-      'ttest' => ['driver' => 'test_adapter'],
+      'ttest' => ['adapter' => 'test_adapter'],
     ]);
   }
 
@@ -104,9 +104,9 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
   }
 
   /**
-   * The factory builds a working operator for the contributed driver.
+   * The factory builds a working operator for the contributed adapter.
    */
-  public function testFactoryBuildsOperatorForContributedDriver(): void {
+  public function testFactoryBuildsOperatorForContributedAdapter(): void {
     /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
     $factory = $this->container->get('flysystem.operator_factory');
 
@@ -114,7 +114,7 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
     $this->assertInstanceOf(
       FilesystemOperator::class,
       $operator,
-      'A scheme bound to a contributed driver resolves to a working operator with no production change.'
+      'A scheme bound to a contributed adapter resolves to a working operator with no production change.'
     );
 
     $operator->write('proof.txt', 'contributed');

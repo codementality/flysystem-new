@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The file-system replay against the in-memory driver.
+ * The file-system replay against the in-memory adapter.
  *
- * Same suite, one word: the driver is 'in_memory'. Mode-policy legs
+ * Same suite, one word: the adapter is 'in_memory'. Mode-policy legs
  * are local-storage declarations and are not claimed here; exception
  * messages are asserted by class and URI prefix because the realpath
  * of a non-local binding is the wrapper's answer, not a path on disk.
@@ -27,7 +27,7 @@ final class FileSystemInMemoryTest extends FileSystemReplay {
   /**
    * {@inheritdoc}
    */
-  protected function replayDriver(): string {
+  protected function replayAdapter(): string {
     return 'in_memory';
   }
 

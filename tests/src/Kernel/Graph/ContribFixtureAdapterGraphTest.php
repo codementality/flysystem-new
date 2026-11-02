@@ -10,23 +10,24 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * The filesystem service graph over the in-memory adapter.
+ * The filesystem service graph over a contributed-adapter fixture.
  *
  * One of three host tests running the identical shared assertion base;
- * the only differences from the local host are the enabled modules and
- * the driver word. No local-storage feature is declared, so the
- * interior '..' leg expects strict rejection.
+ * the contributed plugin — shipped by a hidden testing module with a
+ * single attributed class — passes the same legs as the first-party
+ * backends. The fixture adapter has no local feature, so the interior
+ * '..' leg expects strict rejection.
  */
 #[Group('flysystem')]
 #[RunTestsInSeparateProcesses]
-final class InMemoryDriverGraphTest extends KernelTestBase {
+final class ContribFixtureAdapterGraphTest extends KernelTestBase {
 
   use AdapterAgnosticGraphAssertionsTrait;
 
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['flysystem', 'flysystem_memory'];
+  protected static $modules = ['flysystem', 'flysystem_adapter_test'];
 
   /**
    * {@inheritdoc}
@@ -35,15 +36,15 @@ final class InMemoryDriverGraphTest extends KernelTestBase {
     parent::setUp();
     $this->swapScheme = 'graph-swap';
     $this->setSetting('flysystem', [
-      'graph-swap' => ['driver' => 'in_memory'],
-      'graph-ghost' => ['driver' => 'ghost_driver'],
+      'graph-swap' => ['adapter' => 'test_adapter'],
+      'graph-ghost' => ['adapter' => 'ghost_adapter'],
     ]);
   }
 
   /**
    * The shared legs, strict posture.
    */
-  public function testGraphOnInMemoryAdapter(): void {
+  public function testGraphOnContributedAdapter(): void {
     $this->runGraphAssertions(FALSE);
   }
 

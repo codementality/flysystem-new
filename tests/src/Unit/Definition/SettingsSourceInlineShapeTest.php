@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  * Tests the flat (scheme-keyed) settings shape of the settings source.
  *
  * The recommended user-facing configuration is one entry per scheme,
- * each carrying a 'driver' plus a 'config' array — optionally with the
+ * each carrying an 'adapter' plus a 'config' array — optionally with the
  * binding option 'disabled' as a sibling. The publicly-accessible answer
  * lives inside config as 'public', exactly as the 2.x module spelled it.
  * This is deliberately the shape the published flysystem 2.x module
@@ -41,11 +41,11 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   /**
    * Verifies a legacy layer presents through the modern adapter layer.
    */
-  public function testFlatDriversBecomeAdapterDefinitions(): void {
+  public function testFlatEntriesBecomeAdapterDefinitions(): void {
     new Settings([
       'flysystem' => [
         'local-example' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'config' => [
             'root' => 'sites/default/files/flysystem',
             'public' => TRUE,
@@ -63,7 +63,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     $adapters = $source->getAdapterDefinitions();
     $this->assertSame([
       'local_example' => [
-        'plugin' => 'local',
+        'adapter' => 'local',
         'config' => [
           'root' => 'sites/default/files/flysystem',
           'public' => TRUE,
@@ -75,7 +75,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
           'description' => 'Custom description',
         ],
       ],
-    ], $adapters, 'The driver becomes the plugin; the config, including unrecognized 2.x keys, passes through unchanged — inert keys must not break existing sites.');
+    ], $adapters, 'The adapter word becomes the definition key; the config, including unrecognized 2.x keys, passes through unchanged — inert keys must not break existing sites.');
   }
 
   /**
@@ -84,8 +84,8 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   public function testFlatSchemesBecomeBindings(): void {
     new Settings([
       'flysystem' => [
-        'local-example' => ['driver' => 'local', 'config' => ['root' => 'files', 'public' => TRUE]],
-        'sftpbackup' => ['driver' => 'sftp', 'config' => ['root' => '/srv/backup']],
+        'local-example' => ['adapter' => 'local', 'config' => ['root' => 'files', 'public' => TRUE]],
+        'sftpbackup' => ['adapter' => 'sftp', 'config' => ['root' => '/srv/backup']],
       ],
     ]);
     $source = new SettingsSource();
@@ -107,8 +107,8 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   public function testCaseCollisionsGetDeterministicSuffixes(): void {
     new Settings([
       'flysystem' => [
-        'Public' => ['driver' => 'local', 'config' => ['root' => 'upper']],
-        'public' => ['driver' => 'local', 'config' => ['root' => 'lower']],
+        'Public' => ['adapter' => 'local', 'config' => ['root' => 'upper']],
+        'public' => ['adapter' => 'local', 'config' => ['root' => 'lower']],
       ],
     ]);
     $source = new SettingsSource();
@@ -127,7 +127,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
    */
   public function testTwoSectionWriteFormIsRejectedWithGuidance(): void {
     $layer = [
-      'adapters' => ['main' => ['plugin' => 'local', 'config' => ['root' => 'files']]],
+      'adapters' => ['main' => ['adapter' => 'local', 'config' => ['root' => 'files']]],
       'bindings' => ['public' => ['adapter' => 'main']],
     ];
     new Settings(['flysystem' => $layer]);
@@ -138,7 +138,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     }
     catch (InvalidSettingsStructureException $e) {
       $this->assertStringContainsString('adapters', $e->getMessage());
-      $this->assertStringContainsString('driver', $e->getMessage(), 'The error must teach the supported format, not just reject the old one.');
+      $this->assertStringContainsString('adapter', $e->getMessage(), 'The error must teach the supported format, not just reject an unsupported one.');
     }
   }
 
@@ -159,7 +159,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     new Settings([
       'flysystem' => [
         'temporary' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'disabled' => TRUE,
           'config' => ['root' => 'tmp'],
         ],
@@ -185,7 +185,7 @@ final class SettingsSourceInlineShapeTest extends TestCase {
     new Settings([
       'flysystem' => [
         'cdn' => [
-          'driver' => 'local',
+          'adapter' => 'local',
           'publicly_accessible' => FALSE,
           'config' => ['root' => 'files', 'public' => TRUE],
         ],
@@ -202,8 +202,8 @@ final class SettingsSourceInlineShapeTest extends TestCase {
   public function testPublicFlagOnlyMapsWhenBoolean(): void {
     new Settings([
       'flysystem' => [
-        'one' => ['driver' => 'local', 'config' => ['root' => 'r', 'public' => FALSE]],
-        'two' => ['driver' => 'local', 'config' => ['root' => 'r', 'public' => 'yes']],
+        'one' => ['adapter' => 'local', 'config' => ['root' => 'r', 'public' => FALSE]],
+        'two' => ['adapter' => 'local', 'config' => ['root' => 'r', 'public' => 'yes']],
       ],
     ]);
     $bindings = (new SettingsSource())->getSchemeBindings();

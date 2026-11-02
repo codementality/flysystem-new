@@ -70,7 +70,7 @@ final class DefinitionChecksumTest extends TestCase {
    * Verifies the same definition produces the same key, repeatedly.
    */
   public function testSameDefinitionProducesSameKey(): void {
-    $definition = ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']];
+    $definition = ['adapter' => 'local', 'config' => ['root' => 'sites/default/files']];
     $first = $this->checksum($definition);
     $second = $this->checksum($definition);
     $this->assertSame($first, $second);
@@ -82,7 +82,7 @@ final class DefinitionChecksumTest extends TestCase {
    */
   public function testReorderedConfigProducesSameKey(): void {
     $one = [
-      'plugin' => 'local',
+      'adapter' => 'local',
       'config' => [
         'root' => 'files',
         'unix_visibility' => [
@@ -99,7 +99,7 @@ final class DefinitionChecksumTest extends TestCase {
         ],
         'root' => 'files',
       ],
-      'plugin' => 'local',
+      'adapter' => 'local',
     ];
     $this->assertSame(
       $this->checksum($one),
@@ -112,8 +112,8 @@ final class DefinitionChecksumTest extends TestCase {
    * Verifies a changed root (prefix) keys differently.
    */
   public function testChangedRootProducesDifferentKey(): void {
-    $before = ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']];
-    $after = ['plugin' => 'local', 'config' => ['root' => 'sites/other/files']];
+    $before = ['adapter' => 'local', 'config' => ['root' => 'sites/default/files']];
+    $after = ['adapter' => 'local', 'config' => ['root' => 'sites/other/files']];
     $this->assertNotSame($this->checksum($before), $this->checksum($after));
   }
 
@@ -123,8 +123,8 @@ final class DefinitionChecksumTest extends TestCase {
   public function testDifferentPluginProducesDifferentKey(): void {
     $config = ['config' => ['shared' => TRUE]];
     $this->assertNotSame(
-      $this->checksum(['plugin' => 'local'] + $config),
-      $this->checksum(['plugin' => 's3'] + $config),
+      $this->checksum(['adapter' => 'local'] + $config),
+      $this->checksum(['adapter' => 's3'] + $config),
     );
   }
 
@@ -133,7 +133,7 @@ final class DefinitionChecksumTest extends TestCase {
    */
   public function testEnvReferenceKeyIgnoresTheResolvedValue(): void {
     $definition = [
-      'plugin' => 's3',
+      'adapter' => 's3',
       'config' => [
         'bucket' => 'cdn',
         'secret' => 'env:FLYSYSTEM_TEST_SECRET',
@@ -152,7 +152,7 @@ final class DefinitionChecksumTest extends TestCase {
    * A renamed reference is a different reference.
    */
   public function testEnvReferenceRenamingProducesDifferentKey(): void {
-    $base = ['plugin' => 's3', 'config' => ['bucket' => 'cdn']];
+    $base = ['adapter' => 's3', 'config' => ['bucket' => 'cdn']];
     $one = $base + ['secret' => 'env:FLYSYSTEM_TEST_SECRET_A'];
     $two = $base + ['secret' => 'env:FLYSYSTEM_TEST_SECRET_B'];
     $this->assertNotSame($this->checksum($one), $this->checksum($two));
@@ -162,8 +162,8 @@ final class DefinitionChecksumTest extends TestCase {
    * Verifies list values are order-significant, unlike mapping keys.
    */
   public function testListOrderIsSignificant(): void {
-    $one = ['plugin' => 'local', 'config' => ['allowed' => ['a', 'b']]];
-    $two = ['plugin' => 'local', 'config' => ['allowed' => ['b', 'a']]];
+    $one = ['adapter' => 'local', 'config' => ['allowed' => ['a', 'b']]];
+    $two = ['adapter' => 'local', 'config' => ['allowed' => ['b', 'a']]];
     $this->assertNotSame(
       $this->checksum($one),
       $this->checksum($two),
@@ -175,8 +175,8 @@ final class DefinitionChecksumTest extends TestCase {
    * Verifies type-distinct values key apart ('1' versus 1).
    */
   public function testTypesAreDistinguished(): void {
-    $stringy = ['plugin' => 'local', 'config' => ['depth' => '1']];
-    $numeric = ['plugin' => 'local', 'config' => ['depth' => 1]];
+    $stringy = ['adapter' => 'local', 'config' => ['depth' => '1']];
+    $numeric = ['adapter' => 'local', 'config' => ['depth' => 1]];
     $this->assertNotSame($this->checksum($stringy), $this->checksum($numeric));
   }
 
@@ -185,12 +185,12 @@ final class DefinitionChecksumTest extends TestCase {
    */
   public function testMinimalDefinitionsKeyStably(): void {
     $this->assertNotSame(
-      $this->checksum(['plugin' => 'local', 'config' => []]),
-      $this->checksum(['plugin' => 'memory', 'config' => []]),
+      $this->checksum(['adapter' => 'local', 'config' => []]),
+      $this->checksum(['adapter' => 'memory', 'config' => []]),
     );
     $this->assertSame(
-      $this->checksum(['plugin' => 'local']),
-      $this->checksum(['plugin' => 'local', 'config' => []]),
+      $this->checksum(['adapter' => 'local']),
+      $this->checksum(['adapter' => 'local', 'config' => []]),
       'A missing config section is the same definition as an empty one.',
     );
   }
