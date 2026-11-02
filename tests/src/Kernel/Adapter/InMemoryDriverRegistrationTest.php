@@ -47,11 +47,11 @@ final class InMemoryDriverRegistrationTest extends KernelTestBase {
   public function testInMemoryDriverRegisteredAndFunctional(): void {
     /** @var \Drupal\flysystem\Adapter\FlysystemAdapterManager $manager */
     $manager = $this->container->get('flysystem.adapter_manager');
-    self::assertInstanceOf(FlysystemAdapterManager::class, $manager);
+    $this->assertInstanceOf(FlysystemAdapterManager::class, $manager);
     $definitions = $manager->getDefinitions();
-    self::assertArrayHasKey('in_memory', $definitions, 'The hidden submodule contributes its adapter through the identical plugin discovery rail as the shipped one.');
-    self::assertArrayHasKey('local', $definitions);
-    self::assertInstanceOf(
+    $this->assertArrayHasKey('in_memory', $definitions, 'The hidden submodule contributes its adapter through the identical plugin discovery rail as the shipped one.');
+    $this->assertArrayHasKey('local', $definitions);
+    $this->assertInstanceOf(
       InMemory::class,
       $manager->createInstance('in_memory', []),
       'The manager instantiates the shipped class through the plugin factory.'
@@ -60,9 +60,9 @@ final class InMemoryDriverRegistrationTest extends KernelTestBase {
     /** @var \Drupal\flysystem\Factory\OperatorFactory $factory */
     $factory = $this->container->get('flysystem.operator_factory');
     $operator = $factory->operatorFor('tmem');
-    self::assertInstanceOf(FilesystemOperator::class, $operator);
+    $this->assertInstanceOf(FilesystemOperator::class, $operator);
     $operator->write('volatile.txt', 'ram only');
-    self::assertSame('ram only', $operator->read('volatile.txt'));
+    $this->assertSame('ram only', $operator->read('volatile.txt'));
   }
 
 }

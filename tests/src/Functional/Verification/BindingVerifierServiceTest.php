@@ -39,10 +39,10 @@ final class BindingVerifierServiceTest extends BrowserTestBase {
    */
   public function testVerificationServiceAnswersWithoutThrowing(): void {
     $verifier = $this->container->get('flysystem.binding_verifier');
-    self::assertInstanceOf(BindingVerifier::class, $verifier);
-    self::assertSame([], $verifier->verifyBinding('public'));
+    $this->assertInstanceOf(BindingVerifier::class, $verifier);
+    $this->assertSame([], $verifier->verifyBinding('public'));
     $report = $verifier->verifyAll(['public', 'private', 'temporary']);
-    self::assertSame(['public' => [], 'private' => [], 'temporary' => []], $report);
+    $this->assertSame(['public' => [], 'private' => [], 'temporary' => []], $report);
   }
 
 }

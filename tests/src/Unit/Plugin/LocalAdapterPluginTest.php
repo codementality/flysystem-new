@@ -104,8 +104,8 @@ final class LocalAdapterPluginTest extends TestCase {
    */
   public function testImplementsContractAndLocalStorageFeature(): void {
     $plugin = $this->plugin(['root' => 'files']);
-    self::assertInstanceOf(FlysystemAdapterInterface::class, $plugin);
-    self::assertInstanceOf(
+    $this->assertInstanceOf(FlysystemAdapterInterface::class, $plugin);
+    $this->assertInstanceOf(
       LocalStorageInterface::class,
       $plugin,
       'The local backend declares the local-storage feature so the wiring can answer the webroot-containment question from data.'
@@ -116,7 +116,7 @@ final class LocalAdapterPluginTest extends TestCase {
    * The availability answer reflects the vendored package, honestly.
    */
   public function testIsAvailableReflectsVendoredPackage(): void {
-    self::assertTrue(
+    $this->assertTrue(
       $this->plugin(['root' => 'files'])->isAvailable(),
       'league/flysystem-local is a runtime require — availability is TRUE and the plugin must say so.'
     );
@@ -131,9 +131,9 @@ final class LocalAdapterPluginTest extends TestCase {
     foreach ([$this->appRoot, $this->otherCwd, dirname($this->appRoot)] as $cwd) {
       chdir($cwd);
       $operator->write("probe-$cwd.txt", 'anchored');
-      self::assertFileExists($this->appRoot . '/files/probe-' . $cwd . '.txt', "From CWD $cwd the relative root must still land inside the app root.");
+      $this->assertFileExists($this->appRoot . '/files/probe-' . $cwd . '.txt', "From CWD $cwd the relative root must still land inside the app root.");
       if ($cwd !== $this->appRoot) {
-        self::assertFileDoesNotExist($cwd . '/files/probe-' . $cwd . '.txt', "From CWD $cwd nothing may be created relative to the process directory.");
+        $this->assertFileDoesNotExist($cwd . '/files/probe-' . $cwd . '.txt', "From CWD $cwd nothing may be created relative to the process directory.");
       }
     }
   }
@@ -144,8 +144,8 @@ final class LocalAdapterPluginTest extends TestCase {
   public function testDotDotSegmentsCollapseLexically(): void {
     $operator = $this->operator(['root' => 'sites/default/../../private']);
     $operator->write('secret.txt', 'x');
-    self::assertFileExists($this->appRoot . '/private/secret.txt', 'Lexical collapse must place the root one level up without any intermediate path existing on disk.');
-    self::assertDirectoryDoesNotExist($this->appRoot . '/sites', 'Collapse happens before any path component is touched on disk.');
+    $this->assertFileExists($this->appRoot . '/private/secret.txt', 'Lexical collapse must place the root one level up without any intermediate path existing on disk.');
+    $this->assertDirectoryDoesNotExist($this->appRoot . '/sites', 'Collapse happens before any path component is touched on disk.');
   }
 
   /**
@@ -153,10 +153,10 @@ final class LocalAdapterPluginTest extends TestCase {
    */
   public function testNonexistentRootWithoutSideEffectsOrErrors(): void {
     $operator = $this->operator(['root' => 'not-created-yet']);
-    self::assertDirectoryDoesNotExist($this->appRoot . '/not-created-yet', 'Reading config and building an operator must not create anything — core never does this at config time.');
+    $this->assertDirectoryDoesNotExist($this->appRoot . '/not-created-yet', 'Reading config and building an operator must not create anything — core never does this at config time.');
     $operator->write('late.txt', 'content appears on first write');
-    self::assertSame('content appears on first write', $operator->read('late.txt'));
-    self::assertDirectoryExists($this->appRoot . '/not-created-yet');
+    $this->assertSame('content appears on first write', $operator->read('late.txt'));
+    $this->assertDirectoryExists($this->appRoot . '/not-created-yet');
   }
 
   /**
@@ -166,7 +166,7 @@ final class LocalAdapterPluginTest extends TestCase {
     $absolute = $this->otherCwd . '/abs-root';
     $operator = $this->operator(['root' => $absolute]);
     $operator->write('here.txt', 'yes');
-    self::assertFileExists($absolute . '/here.txt');
+    $this->assertFileExists($absolute . '/here.txt');
   }
 
   /**
@@ -175,8 +175,8 @@ final class LocalAdapterPluginTest extends TestCase {
   public function testPrivateConventionRelativeEscapeRoundTrip(): void {
     $operator = $this->operator(['root' => '../private-outside']);
     $operator->write('pf.txt', 'private lives outside the webroot by convention');
-    self::assertSame('private lives outside the webroot by convention', $operator->read('pf.txt'));
-    self::assertFileExists(dirname($this->appRoot) . '/private-outside/pf.txt');
+    $this->assertSame('private lives outside the webroot by convention', $operator->read('pf.txt'));
+    $this->assertFileExists(dirname($this->appRoot) . '/private-outside/pf.txt');
   }
 
   /**
@@ -195,9 +195,9 @@ final class LocalAdapterPluginTest extends TestCase {
     $operator = $this->operator(['root' => 'dirmode']);
     $operator->write('created/by-write.txt', 'x');
     $mode = fileperms($this->appRoot . '/dirmode/created') & 0777;
-    self::assertSame(0775, $mode, 'Created directories must carry the Drupal default 0775, not league\'s 0755.');
+    $this->assertSame(0775, $mode, 'Created directories must carry the Drupal default 0775, not league\'s 0755.');
     $dirMode = fileperms($this->appRoot . '/dirmode') & 0777;
-    self::assertSame(0775, $dirMode, 'The bound root itself is created lazily with the same mode.');
+    $this->assertSame(0775, $dirMode, 'The bound root itself is created lazily with the same mode.');
   }
 
   /**
@@ -208,7 +208,7 @@ final class LocalAdapterPluginTest extends TestCase {
     $operator = $this->operator(['root' => 'dirset']);
     $operator->write('sub/x.txt', 'x');
     $mode = fileperms($this->appRoot . '/dirset/sub') & 0777;
-    self::assertSame(0770, $mode, 'A site file_chmod_directory setting must reach implicitly created directories, exactly as 2.x read it.');
+    $this->assertSame(0770, $mode, 'A site file_chmod_directory setting must reach implicitly created directories, exactly as 2.x read it.');
   }
 
   /**
@@ -220,8 +220,8 @@ final class LocalAdapterPluginTest extends TestCase {
     $operator->write('folder/secret.txt', 'x', ['visibility' => 'private']);
     $fileMode = fileperms($this->appRoot . '/mixed/folder/secret.txt') & 0777;
     $dirMode = fileperms($this->appRoot . '/mixed/folder') & 0777;
-    self::assertSame(0600, $fileMode, 'The private file mode applies to the file.');
-    self::assertSame(0775, $dirMode, 'Directory creation follows the declared default-for-directories posture (public), matching core: a private file inside a traversable folder.');
+    $this->assertSame(0600, $fileMode, 'The private file mode applies to the file.');
+    $this->assertSame(0775, $dirMode, 'Directory creation follows the declared default-for-directories posture (public), matching core: a private file inside a traversable folder.');
   }
 
   /**
@@ -246,7 +246,7 @@ final class LocalAdapterPluginTest extends TestCase {
     ]);
     $operator->write('deep/nested.txt', 'v');
     $read = $operator->readStream('deep/../deep/nested.txt');
-    self::assertSame('v', stream_get_contents($read), 'Local-mode operators keep library-default relative resolution inside the root.');
+    $this->assertSame('v', stream_get_contents($read), 'Local-mode operators keep library-default relative resolution inside the root.');
   }
 
   /**
@@ -260,7 +260,7 @@ final class LocalAdapterPluginTest extends TestCase {
     $operator = $this->operator(['root' => 'preset-root']);
     $operator->write('inside.txt', 'x');
     $mode = fileperms($dir) & 0777;
-    self::assertSame(0700, $mode, 'A directory the site already made keeps its mode — only directories this operation creates get the declared one.');
+    $this->assertSame(0700, $mode, 'A directory the site already made keeps its mode — only directories this operation creates get the declared one.');
   }
 
   /**
@@ -276,7 +276,7 @@ final class LocalAdapterPluginTest extends TestCase {
     ]);
     $operator->write('priv.txt', 'x', ['visibility' => 'private']);
     $perms = fileperms($this->appRoot . '/files/priv.txt') & 0777;
-    self::assertSame(0600, $perms, 'Configured private file mode must be honored — the converter pass-through is the config-domain proof.');
+    $this->assertSame(0600, $perms, 'Configured private file mode must be honored — the converter pass-through is the config-domain proof.');
   }
 
   /**
@@ -285,12 +285,12 @@ final class LocalAdapterPluginTest extends TestCase {
   public function testRoundTripThroughOperator(): void {
     $operator = $this->operator(['root' => 'round']);
     $operator->write('a.txt', 'hello');
-    self::assertSame('hello', $operator->read('a.txt'));
+    $this->assertSame('hello', $operator->read('a.txt'));
     $paths = [];
     foreach ($operator->listContents('', TRUE) as $item) {
       $paths[] = $item->path();
     }
-    self::assertSame(['a.txt'], $paths);
+    $this->assertSame(['a.txt'], $paths);
   }
 
   /**
@@ -301,7 +301,7 @@ final class LocalAdapterPluginTest extends TestCase {
     $operator = $this->operator(['root' => 'files']);
     $operator->write('mode.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/mode.txt') & 0777;
-    self::assertSame(0664, $mode, 'Unconfigured writes carry the Drupal default file mode (0664), not league\'s 0644 — upgraded sites keep their permission expectations.');
+    $this->assertSame(0664, $mode, 'Unconfigured writes carry the Drupal default file mode (0664), not league\'s 0644 — upgraded sites keep their permission expectations.');
   }
 
   /**
@@ -312,7 +312,7 @@ final class LocalAdapterPluginTest extends TestCase {
     $operator = $this->operator(['root' => 'files']);
     $operator->write('c.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/c.txt') & 0777;
-    self::assertSame(0660, $mode, 'The site file_chmod_file setting must drive the public-write mode, exactly as the earlier module generation read it.');
+    $this->assertSame(0660, $mode, 'The site file_chmod_file setting must drive the public-write mode, exactly as the earlier module generation read it.');
   }
 
   /**
@@ -329,7 +329,7 @@ final class LocalAdapterPluginTest extends TestCase {
     ]);
     $operator->write('legacy.txt', 'x');
     $mode = fileperms($this->appRoot . '/files/legacy.txt') & 0777;
-    self::assertSame(0666, $mode, 'A legacy permissions map must work unchanged — the plugin-scope half of the backward-compatibility promise.');
+    $this->assertSame(0666, $mode, 'A legacy permissions map must work unchanged — the plugin-scope half of the backward-compatibility promise.');
   }
 
   /**
@@ -351,15 +351,15 @@ final class LocalAdapterPluginTest extends TestCase {
     catch (\Throwable $e) {
       $threw = TRUE;
     }
-    self::assertTrue($threw, 'The default posture disallows links: listing a directory holding a symlink must throw.');
+    $this->assertTrue($threw, 'The default posture disallows links: listing a directory holding a symlink must throw.');
 
     $skip = $this->operator(['root' => 'links', 'link_handling' => 'skip']);
     $seen = [];
     foreach ($skip->listContents('', FALSE) as $item) {
       $seen[] = $item->path();
     }
-    self::assertNotContains('link.txt', $seen, 'link_handling: skip must omit symlinked entries from listings.');
-    self::assertContains('real.txt', $seen, 'Regular entries are still listed when links are skipped.');
+    $this->assertNotContains('link.txt', $seen, 'link_handling: skip must omit symlinked entries from listings.');
+    $this->assertContains('real.txt', $seen, 'Regular entries are still listed when links are skipped.');
   }
 
   /**
@@ -367,7 +367,7 @@ final class LocalAdapterPluginTest extends TestCase {
    */
   public function testAdapterObjectIsBuiltOnceAndReused(): void {
     $plugin = $this->plugin(['root' => 'files']);
-    self::assertSame(
+    $this->assertSame(
       $plugin->adapter(),
       $plugin->adapter(),
       'A plugin instance holds its configuration and produces its league adapter once — repeated calls must not rebuild it.'

@@ -76,7 +76,7 @@ final class CommentsAreSelfContainedTest extends TestCase {
         }
       }
     }
-    self::assertSame([], $violations, "Shipped comments must stand on their own; rewrite internal references in plain terms:\n" . implode("\n", $violations));
+    $this->assertSame([], $violations, "Shipped comments must stand on their own; rewrite internal references in plain terms:\n" . implode("\n", $violations));
   }
 
   /**
