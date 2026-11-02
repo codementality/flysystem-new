@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\flysystem\Kernel\Core;
 
 use Drupal\Core\DependencyInjection\ContainerBuilder;
-use Drupal\flysystem\StreamWrapper\FlysystemStreamWrapper;
 use Drupal\KernelTests\KernelTestBase;
-use League\Flysystem\FilesystemOperator;
 
 /**
  * Shared harness for the replayed core File corpus.
@@ -49,11 +47,14 @@ abstract class FileReplayBase extends KernelTestBase {
   protected string $replayRoot = '';
 
   /**
-   * The operator installed into the wrapper's context slot.
+   * The class registered for the scheme under test.
    *
-   * @var \League\Flysystem\FilesystemOperator
+   * The harness's dispatch-probing subclass of the module's wrapper.
+   * Observability lives test-side; the production class carries none.
+   *
+   * @var string
    */
-  protected ?FilesystemOperator $operator = NULL;
+  protected string $wrapperClass = DispatchProbedStreamWrapper::class;
 
   /**
    * {@inheritdoc}
@@ -61,7 +62,7 @@ abstract class FileReplayBase extends KernelTestBase {
   public function register(ContainerBuilder $container): void {
     parent::register($container);
     $container
-      ->register('stream_wrapper.' . $this->scheme, FlysystemStreamWrapper::class)
+      ->register('stream_wrapper.' . $this->scheme, $this->wrapperClass)
       ->addTag('stream_wrapper', ['scheme' => $this->scheme]);
   }
 
@@ -81,23 +82,24 @@ abstract class FileReplayBase extends KernelTestBase {
       ->save();
 
     $this->replayRoot = $this->siteDirectory . '/replay-root';
-    $built = FALSE;
-    FlysystemStreamWrapper::setOperatorResolver(function () use (&$built): FilesystemOperator {
-      if (!$built) {
-        $this->operator = $this->buildReplayOperator();
-        $built = TRUE;
-      }
-      return $this->operator;
-    });
-    FlysystemStreamWrapper::resetJournal();
+    // The binding is ordinary site configuration: the driver word and
+    // its config flow through the same resolution path the production
+    // wrapper will read them through once storage behavior lands. No
+    // test injects an operator into a wrapper.
+    $this->setSetting('flysystem', [
+      $this->scheme => [
+        'driver' => $this->replayDriver(),
+        'config' => $this->replayConfig(),
+      ],
+    ]);
+    DispatchProbedStreamWrapper::resetJournal();
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    FlysystemStreamWrapper::setOperatorResolver(NULL);
-    FlysystemStreamWrapper::resetJournal();
+    DispatchProbedStreamWrapper::resetJournal();
     parent::tearDown();
   }
 
@@ -119,21 +121,6 @@ abstract class FileReplayBase extends KernelTestBase {
    */
   protected function replayConfig(): array {
     return [];
-  }
-
-  /**
-   * Builds the operator directly through the filesystem service graph.
-   *
-   * @return \League\Flysystem\FilesystemOperator
-   *   The operator installed into the wrapper's context slot.
-   */
-  protected function buildReplayOperator(): FilesystemOperator {
-    $config = $this->replayConfig();
-    $config['allow_relative_path_traversal'] = $this->replayIsLocalStorage();
-    $adapter = $this->container->get('flysystem.adapter_manager')
-      ->createInstance($this->replayDriver(), $config);
-    return $this->container->get('flysystem.filesystem_builder')
-      ->build($adapter->adapter(), $config);
   }
 
   /**
@@ -177,13 +164,13 @@ abstract class FileReplayBase extends KernelTestBase {
       stream_get_wrappers(),
       "The replay scheme must be registered with PHP before any leg runs."
     );
-    FlysystemStreamWrapper::resetJournal();
+    DispatchProbedStreamWrapper::resetJournal();
     @fopen($this->uri('dispatch-probe'), 'r');
     self::assertNotEmpty(
-      FlysystemStreamWrapper::journal(),
+      DispatchProbedStreamWrapper::journal(),
       'The engine must actually dispatch this scheme to the subject wrapper — an empty journal means every later assertion in this test would pass vacuously.'
     );
-    FlysystemStreamWrapper::resetJournal();
+    DispatchProbedStreamWrapper::resetJournal();
   }
 
   /**

@@ -11,7 +11,6 @@ use Drupal\Core\File\FileUrlGeneratorInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\Core\StreamWrapper\PublicStream;
-use Drupal\flysystem\StreamWrapper\FlysystemStreamWrapper;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -56,7 +55,7 @@ abstract class StreamWrapperReplay extends FileReplayBase {
   public function testGetClassName(): void {
     $this->assertDispatchIsLive();
     // Check the scheme under test.
-    $this->assertEquals(FlysystemStreamWrapper::class, \Drupal::service('stream_wrapper_manager')->getClass($this->scheme), 'Got correct class name for the scheme under test.');
+    $this->assertEquals($this->wrapperClass, \Drupal::service('stream_wrapper_manager')->getClass($this->scheme), 'Got correct class name for the scheme under test.');
     // Check core's scheme.
     $this->assertEquals('Drupal\Core\StreamWrapper\PublicStream', \Drupal::service('stream_wrapper_manager')->getClass('public'), 'Got correct class name for public scheme.');
   }
@@ -67,7 +66,7 @@ abstract class StreamWrapperReplay extends FileReplayBase {
   public function testGetInstanceByScheme(): void {
     $this->assertDispatchIsLive();
     $instance = \Drupal::service('stream_wrapper_manager')->getViaScheme($this->scheme);
-    $this->assertEquals(FlysystemStreamWrapper::class, get_class($instance), 'Got correct class type for the scheme under test.');
+    $this->assertEquals($this->wrapperClass, get_class($instance), 'Got correct class type for the scheme under test.');
 
     $instance = \Drupal::service('stream_wrapper_manager')->getViaScheme('public');
     $this->assertEquals('Drupal\Core\StreamWrapper\PublicStream', get_class($instance), 'Got correct class type for public scheme.');
@@ -82,7 +81,7 @@ abstract class StreamWrapperReplay extends FileReplayBase {
     $stream_wrapper_manager = \Drupal::service('stream_wrapper_manager');
 
     $instance = $stream_wrapper_manager->getViaUri($this->uri('foo'));
-    $this->assertEquals(FlysystemStreamWrapper::class, get_class($instance), 'Got correct class type for a URI of the scheme under test.');
+    $this->assertEquals($this->wrapperClass, get_class($instance), 'Got correct class type for a URI of the scheme under test.');
 
     $instance = $stream_wrapper_manager->getViaUri('public://foo');
     $this->assertEquals('Drupal\Core\StreamWrapper\PublicStream', get_class($instance), 'Got correct class type for public URI.');

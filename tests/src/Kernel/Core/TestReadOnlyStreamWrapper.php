@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Drupal\Tests\flysystem\Kernel\Core;
 
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
-use Drupal\flysystem\StreamWrapper\FlysystemStreamWrapper;
 
 /**
  * A test-scope read-only posture over the subject stream wrapper.
@@ -24,7 +23,7 @@ use Drupal\flysystem\StreamWrapper\FlysystemStreamWrapper;
  * pinning that contract at the wrapper seam; it is not production
  * code.
  */
-class TestReadOnlyStreamWrapper extends FlysystemStreamWrapper {
+class TestReadOnlyStreamWrapper extends DispatchProbedStreamWrapper {
 
   /**
    * {@inheritdoc}
