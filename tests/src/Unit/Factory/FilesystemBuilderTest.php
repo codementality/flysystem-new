@@ -48,10 +48,10 @@ final class FilesystemBuilderTest extends TestCase {
   public function testBuildProducesWorkingOperatorOverGivenAdapter(): void {
     $adapter = new InMemoryFilesystemAdapter();
     $operator = $this->builder()->build($adapter, []);
-    self::assertInstanceOf(FilesystemOperator::class, $operator);
+    $this->assertInstanceOf(FilesystemOperator::class, $operator);
     $operator->write('composed.txt', 'through the builder');
-    self::assertSame('through the builder', $operator->read('composed.txt'));
-    self::assertSame(
+    $this->assertSame('through the builder', $operator->read('composed.txt'));
+    $this->assertSame(
       'through the builder',
       $adapter->read('composed.txt'),
       'The operator wraps the very adapter object handed in.'
@@ -66,7 +66,7 @@ final class FilesystemBuilderTest extends TestCase {
 
     $permissive = $this->builder()->build($adapter, ['allow_relative_path_traversal' => TRUE]);
     $permissive->write('deep/target.txt', 'v');
-    self::assertSame(
+    $this->assertSame(
       'v',
       $permissive->read('deep/../deep/target.txt'),
       'Posture TRUE is the library default: interior .. resolves inside the root.'
@@ -94,7 +94,7 @@ final class FilesystemBuilderTest extends TestCase {
     $adapter = new InMemoryFilesystemAdapter();
     $operator = $this->builder($normalizer)->build($adapter, []);
     $operator->write('MIXEDCASE.txt', 'normalized');
-    self::assertSame(
+    $this->assertSame(
       'normalized',
       $adapter->read('mixedcase.txt'),
       'The injected collaborator, not the library default, normalized the path.'
@@ -109,7 +109,7 @@ final class FilesystemBuilderTest extends TestCase {
     $builder = $this->builder(NULL, ['visibility' => 'private']);
     $operator = $builder->build($adapter, ['visibility' => 'public']);
     $operator->write('merged.txt', 'm');
-    self::assertSame(
+    $this->assertSame(
       'public',
       $adapter->visibility('merged.txt')->visibility(),
       'Per-build configuration wins over the builder defaults — the library merge order, preserved.'
@@ -125,8 +125,8 @@ final class FilesystemBuilderTest extends TestCase {
     $snapshot = $config;
     $first = $this->builder()->build($adapter, $config);
     $second = $this->builder()->build($adapter, $config);
-    self::assertSame($config, $snapshot, 'Building must not mutate the caller\'s configuration array.');
-    self::assertNotSame(
+    $this->assertSame($config, $snapshot, 'Building must not mutate the caller\'s configuration array.');
+    $this->assertNotSame(
       $first,
       $second,
       'Memoization is the factory\'s per-request concern; the builder composes fresh every call.'

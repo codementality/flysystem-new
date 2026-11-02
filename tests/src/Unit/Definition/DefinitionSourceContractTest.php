@@ -95,14 +95,14 @@ final class DefinitionSourceContractTest extends TestCase {
    */
   public function testInterfaceDeclaresExactlyTwoArrayLayers(): void {
     $reflection = new \ReflectionClass(AdapterDefinitionSourceInterface::class);
-    self::assertTrue($reflection->isInterface());
+    $this->assertTrue($reflection->isInterface());
 
     $methods = [];
     foreach ($reflection->getMethods() as $method) {
-      self::assertSame(0, $method->getNumberOfParameters(), sprintf('Source method %s() must take no parameters.', $method->getName()));
+      $this->assertSame(0, $method->getNumberOfParameters(), sprintf('Source method %s() must take no parameters.', $method->getName()));
       $returnType = $method->getReturnType();
-      self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
-      self::assertSame('array', $returnType->getName(), sprintf('Source method %s() must return a plain array, not a typed structure — sources stay dumb.', $method->getName()));
+      $this->assertInstanceOf(\ReflectionNamedType::class, $returnType);
+      $this->assertSame('array', $returnType->getName(), sprintf('Source method %s() must return a plain array, not a typed structure — sources stay dumb.', $method->getName()));
       $methods[] = $method->getName();
     }
     sort($methods);
@@ -110,7 +110,7 @@ final class DefinitionSourceContractTest extends TestCase {
     // source-specific branching below the resolver, and an interface
     // carrying origin would invite it. Later methods are a deliberate
     // decision, reviewed as such.
-    self::assertSame(['getAdapterDefinitions', 'getSchemeBindings'], $methods, 'The definition source seam is exactly two plain-array layers.');
+    $this->assertSame(['getAdapterDefinitions', 'getSchemeBindings'], $methods, 'The definition source seam is exactly two plain-array layers.');
   }
 
   /**
@@ -121,11 +121,11 @@ final class DefinitionSourceContractTest extends TestCase {
 
     $source = new SettingsSource();
     $expected = self::sampleLayer();
-    self::assertInstanceOf(AdapterDefinitionSourceInterface::class, $source);
+    $this->assertInstanceOf(AdapterDefinitionSourceInterface::class, $source);
     // Order-insensitive on purpose: normalization sorts scheme order, which
     // is a detail; the pairs are the contract.
-    self::assertEquals($expected['adapters'], $source->getAdapterDefinitions(), 'Scheme-keyed settings present as adapter definitions under sanitized ids.');
-    self::assertEquals($expected['bindings'], $source->getSchemeBindings(), 'Binding siblings ride into the binding layer untouched.');
+    $this->assertEquals($expected['adapters'], $source->getAdapterDefinitions(), 'Scheme-keyed settings present as adapter definitions under sanitized ids.');
+    $this->assertEquals($expected['bindings'], $source->getSchemeBindings(), 'Binding siblings ride into the binding layer untouched.');
   }
 
   /**
@@ -134,8 +134,8 @@ final class DefinitionSourceContractTest extends TestCase {
   public function testMissingFlysystemLayerIsSilentlyEmpty(): void {
     new Settings([]);
     $source = new SettingsSource();
-    self::assertSame([], $source->getAdapterDefinitions());
-    self::assertSame([], $source->getSchemeBindings());
+    $this->assertSame([], $source->getAdapterDefinitions());
+    $this->assertSame([], $source->getSchemeBindings());
   }
 
   /**
@@ -149,8 +149,8 @@ final class DefinitionSourceContractTest extends TestCase {
     ]);
     $source = new SettingsSource();
     $expected = self::sampleLayer();
-    self::assertEquals($expected['adapters'], $source->getAdapterDefinitions());
-    self::assertEquals($expected['bindings'], $source->getSchemeBindings());
+    $this->assertEquals($expected['adapters'], $source->getAdapterDefinitions());
+    $this->assertEquals($expected['bindings'], $source->getSchemeBindings());
   }
 
   /**
@@ -165,12 +165,12 @@ final class DefinitionSourceContractTest extends TestCase {
       new ArrayDefinitionSource($arrayLayer),
     ];
     foreach ($sources as $source) {
-      self::assertInstanceOf(AdapterDefinitionSourceInterface::class, $source);
+      $this->assertInstanceOf(AdapterDefinitionSourceInterface::class, $source);
     }
     // The binding resolver consumes these outputs; identity here is the
     // seam proof — swapping a source requires no resolver change.
-    self::assertEquals($sources[0]->getAdapterDefinitions(), $sources[1]->getAdapterDefinitions());
-    self::assertEquals($sources[0]->getSchemeBindings(), $sources[1]->getSchemeBindings());
+    $this->assertEquals($sources[0]->getAdapterDefinitions(), $sources[1]->getAdapterDefinitions());
+    $this->assertEquals($sources[0]->getSchemeBindings(), $sources[1]->getSchemeBindings());
   }
 
   /**
@@ -179,8 +179,8 @@ final class DefinitionSourceContractTest extends TestCase {
   public function testNonArrayFlysystemLayerReadsAsEmpty(): void {
     new Settings(['flysystem' => 'oops']);
     $source = new SettingsSource();
-    self::assertSame([], $source->getAdapterDefinitions());
-    self::assertSame([], $source->getSchemeBindings());
+    $this->assertSame([], $source->getAdapterDefinitions());
+    $this->assertSame([], $source->getSchemeBindings());
   }
 
   /**
@@ -221,7 +221,7 @@ final class DefinitionSourceContractTest extends TestCase {
       ],
     ]);
     $source = new SettingsSource();
-    self::assertSame([
+    $this->assertSame([
       'public' => [
         'plugin' => 'local',
         'config' => [
@@ -231,7 +231,7 @@ final class DefinitionSourceContractTest extends TestCase {
         ],
       ],
     ], $source->getAdapterDefinitions());
-    self::assertSame([
+    $this->assertSame([
       'public' => ['adapter' => 'public'],
     ], $source->getSchemeBindings(), 'A non-boolean disabled sibling is not copied into the binding; validation has its say later.');
 
@@ -241,8 +241,8 @@ final class DefinitionSourceContractTest extends TestCase {
       'bindings' => ['public' => ['adapter' => 'main', 'disabled' => 'not-a-bool']],
     ];
     $fake = new ArrayDefinitionSource($malformed);
-    self::assertSame($malformed['adapters'], $fake->getAdapterDefinitions());
-    self::assertSame($malformed['bindings'], $fake->getSchemeBindings());
+    $this->assertSame($malformed['adapters'], $fake->getAdapterDefinitions());
+    $this->assertSame($malformed['bindings'], $fake->getSchemeBindings());
   }
 
   /**
@@ -251,9 +251,9 @@ final class DefinitionSourceContractTest extends TestCase {
   public function testArraySourceTakesTheSettingsLayerVerbatim(): void {
     $layer = self::sampleLayer();
     $source = new ArrayDefinitionSource($layer);
-    self::assertInstanceOf(AdapterDefinitionSourceInterface::class, $source);
-    self::assertSame($layer['adapters'], $source->getAdapterDefinitions());
-    self::assertSame($layer['bindings'], $source->getSchemeBindings());
+    $this->assertInstanceOf(AdapterDefinitionSourceInterface::class, $source);
+    $this->assertSame($layer['adapters'], $source->getAdapterDefinitions());
+    $this->assertSame($layer['bindings'], $source->getSchemeBindings());
   }
 
 }

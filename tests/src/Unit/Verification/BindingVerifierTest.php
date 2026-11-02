@@ -192,7 +192,7 @@ final class BindingVerifierTest extends TestCase {
         'bindings' => ['public' => ['adapter' => 'main']],
       ],
     ]);
-    self::assertSame([], $verifier->verifyBinding('public'));
+    $this->assertSame([], $verifier->verifyBinding('public'));
   }
 
   /**
@@ -200,7 +200,7 @@ final class BindingVerifierTest extends TestCase {
    */
   public function testUnboundSchemeHasNoFindings(): void {
     $verifier = $this->verifier([['adapters' => [], 'bindings' => []]]);
-    self::assertSame([], $verifier->verifyBinding('private'));
+    $this->assertSame([], $verifier->verifyBinding('private'));
   }
 
   /**
@@ -214,9 +214,9 @@ final class BindingVerifierTest extends TestCase {
       ],
     ]);
     $findings = $verifier->verifyBinding('s');
-    self::assertCount(1, $findings);
-    self::assertSame('error', $findings[0]['severity']);
-    self::assertStringContainsString('ghost_plugin', $findings[0]['message']);
+    $this->assertCount(1, $findings);
+    $this->assertSame('error', $findings[0]['severity']);
+    $this->assertStringContainsString('ghost_plugin', $findings[0]['message']);
   }
 
   /**
@@ -230,9 +230,9 @@ final class BindingVerifierTest extends TestCase {
       ],
     ]);
     $findings = $verifier->verifyBinding('s');
-    self::assertCount(1, $findings);
-    self::assertSame('error', $findings[0]['severity']);
-    self::assertStringContainsString('absent_backend', $findings[0]['message']);
+    $this->assertCount(1, $findings);
+    $this->assertSame('error', $findings[0]['severity']);
+    $this->assertStringContainsString('absent_backend', $findings[0]['message']);
   }
 
   /**
@@ -246,9 +246,9 @@ final class BindingVerifierTest extends TestCase {
       ],
     ]);
     $findings = $verifier->verifyBinding('public');
-    self::assertNotEmpty($findings);
-    self::assertSame('error', $findings[0]['severity']);
-    self::assertStringContainsString('/srv/outside-webroot', $findings[0]['message']);
+    $this->assertNotEmpty($findings);
+    $this->assertSame('error', $findings[0]['severity']);
+    $this->assertStringContainsString('/srv/outside-webroot', $findings[0]['message']);
   }
 
   /**
@@ -259,8 +259,8 @@ final class BindingVerifierTest extends TestCase {
       ['adapters' => ['m' => 'not-an-array'], 'bindings' => ['public' => ['adapter' => 'm']]],
     ]);
     $findings = $verifier->verifyBinding('public');
-    self::assertNotEmpty($findings);
-    self::assertSame('error', $findings[0]['severity']);
+    $this->assertNotEmpty($findings);
+    $this->assertSame('error', $findings[0]['severity']);
   }
 
   /**
@@ -280,9 +280,9 @@ final class BindingVerifierTest extends TestCase {
       ],
     ]);
     $report = $verifier->verifyAll(['public', 'broken', 'absent_here']);
-    self::assertSame([], $report['public']);
-    self::assertCount(1, $report['broken']);
-    self::assertSame([], $report['absent_here']);
+    $this->assertSame([], $report['public']);
+    $this->assertCount(1, $report['broken']);
+    $this->assertSame([], $report['absent_here']);
   }
 
   /**
@@ -290,13 +290,13 @@ final class BindingVerifierTest extends TestCase {
    */
   public function testGarbageSchemeNameThrowsNeverAndUnboundStaysClean(): void {
     $unbound = $this->verifier([['adapters' => [], 'bindings' => []]]);
-    self::assertSame([], $unbound->verifyBinding('has space'), 'A scheme nothing binds cannot misbehave; verification stays quiet.');
+    $this->assertSame([], $unbound->verifyBinding('has space'), 'A scheme nothing binds cannot misbehave; verification stays quiet.');
 
     $bound = $this->verifier([
       ['adapters' => [], 'bindings' => ['has space' => ['adapter' => 'anything']]],
     ]);
     $findings = $bound->verifyBinding('has space');
-    self::assertSame('error', $findings[0]['severity'], 'A bound scheme with an illegal name surfaces as a finding, never as an exception.');
+    $this->assertSame('error', $findings[0]['severity'], 'A bound scheme with an illegal name surfaces as a finding, never as an exception.');
   }
 
   /**
@@ -318,7 +318,7 @@ final class BindingVerifierTest extends TestCase {
     ]);
     $schemes = $verifier->configuredSchemes();
     sort($schemes);
-    self::assertSame(['cdn', 'files', 'other'], $schemes, 'Every scheme bound by any source is known to the verifier, file-configured or otherwise.');
+    $this->assertSame(['cdn', 'files', 'other'], $schemes, 'Every scheme bound by any source is known to the verifier, file-configured or otherwise.');
   }
 
   /**
@@ -338,9 +338,9 @@ final class BindingVerifierTest extends TestCase {
       ],
     ]);
     $report = $verifier->verifyEverything();
-    self::assertSame(['broken', 'public'], array_keys($report), 'Report is keyed by configured scheme, deterministically ordered.');
-    self::assertSame([], $report['public']);
-    self::assertSame('error', $report['broken'][0]['severity']);
+    $this->assertSame(['broken', 'public'], array_keys($report), 'Report is keyed by configured scheme, deterministically ordered.');
+    $this->assertSame([], $report['public']);
+    $this->assertSame('error', $report['broken'][0]['severity']);
   }
 
 }

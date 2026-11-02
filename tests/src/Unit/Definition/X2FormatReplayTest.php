@@ -85,7 +85,7 @@ final class X2FormatReplayTest extends TestCase {
 
     $source = new SettingsSource();
 
-    self::assertSame([
+    $this->assertSame([
       'local_example' => [
         'plugin' => 'local',
         'config' => [
@@ -100,16 +100,16 @@ final class X2FormatReplayTest extends TestCase {
       . 'inert.');
 
     $resolved = $this->resolver()->resolve('local-example');
-    self::assertNotNull(
+    $this->assertNotNull(
       $resolved,
       'The replayed entry resolves to a working definition.'
     );
-    self::assertSame('local', $resolved['plugin']);
-    self::assertTrue(
+    $this->assertSame('local', $resolved['plugin']);
+    $this->assertTrue(
       $resolved['publicly_accessible'],
       'config[public] answers the flag exactly as the 2.x plugin read it.'
     );
-    self::assertSame(
+    $this->assertSame(
       'sites/default/files/flysystem',
       $resolved['config']['root']
     );
@@ -136,7 +136,7 @@ final class X2FormatReplayTest extends TestCase {
     ]);
 
     $adapters = (new SettingsSource())->getAdapterDefinitions();
-    self::assertSame(
+    $this->assertSame(
       'ftp',
       $adapters['ftpexample']['plugin'],
       'The 2.x driver word is carried through the layers unchanged.'

@@ -66,8 +66,8 @@ final class StatusReporterTest extends TestCase {
    */
   public function testUnconfiguredSiteReportsOkAndSaysSo(): void {
     $entry = $this->reporter([], [])->buildEntry();
-    self::assertSame(RequirementSeverity::OK, $entry['severity']);
-    self::assertStringContainsString('No Flysystem-backed schemes', (string) $entry['value']->getUntranslatedString());
+    $this->assertSame(RequirementSeverity::OK, $entry['severity']);
+    $this->assertStringContainsString('No Flysystem-backed schemes', (string) $entry['value']->getUntranslatedString());
   }
 
   /**
@@ -75,9 +75,9 @@ final class StatusReporterTest extends TestCase {
    */
   public function testCleanConfigurationReportsOkWithSchemes(): void {
     $entry = $this->reporter(['public'], ['public' => []])->buildEntry();
-    self::assertSame(RequirementSeverity::OK, $entry['severity']);
-    self::assertInstanceOf(TranslatableMarkup::class, $entry['value']);
-    self::assertStringContainsString('@schemes', $entry['value']->getUntranslatedString());
+    $this->assertSame(RequirementSeverity::OK, $entry['severity']);
+    $this->assertInstanceOf(TranslatableMarkup::class, $entry['value']);
+    $this->assertStringContainsString('@schemes', $entry['value']->getUntranslatedString());
   }
 
   /**
@@ -87,10 +87,10 @@ final class StatusReporterTest extends TestCase {
     $entry = $this->reporter(['broken'], [
       'broken' => [['severity' => 'error', 'message' => 'The adapter plugin no_such is not available.']],
     ])->buildEntry();
-    self::assertSame(RequirementSeverity::Error, $entry['severity']);
+    $this->assertSame(RequirementSeverity::Error, $entry['severity']);
     $rendered = implode('; ', $entry['value']['#items']);
-    self::assertStringContainsString('broken', $rendered);
-    self::assertStringContainsString('no_such', $rendered);
+    $this->assertStringContainsString('broken', $rendered);
+    $this->assertStringContainsString('no_such', $rendered);
   }
 
   /**
@@ -100,7 +100,7 @@ final class StatusReporterTest extends TestCase {
     $entry = $this->reporter(['sandbox'], [
       'sandbox' => [['severity' => 'warning', 'message' => 'Something to look at.']],
     ])->buildEntry();
-    self::assertSame(RequirementSeverity::Warning, $entry['severity']);
+    $this->assertSame(RequirementSeverity::Warning, $entry['severity']);
   }
 
 }

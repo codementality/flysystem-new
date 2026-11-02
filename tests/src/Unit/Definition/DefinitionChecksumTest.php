@@ -51,11 +51,11 @@ final class DefinitionChecksumTest extends TestCase {
    */
   public function testTraitShapeIsProtectedAndNonStatic(): void {
     $reflection = new \ReflectionClass(DefinitionChecksumTrait::class);
-    self::assertTrue($reflection->isTrait(), 'The checksum is composed by consumers, not called as a global utility.');
+    $this->assertTrue($reflection->isTrait(), 'The checksum is composed by consumers, not called as a global utility.');
     foreach ($reflection->getMethods() as $method) {
-      self::assertFalse($method->isStatic(), sprintf('Trait method %s() must not be static.', $method->getName()));
+      $this->assertFalse($method->isStatic(), sprintf('Trait method %s() must not be static.', $method->getName()));
     }
-    self::assertTrue($reflection->getMethod('definitionChecksum')->isProtected(), 'The checksum is protected: internal to composing classes, not third-party API.');
+    $this->assertTrue($reflection->getMethod('definitionChecksum')->isProtected(), 'The checksum is protected: internal to composing classes, not third-party API.');
   }
 
   /**
@@ -73,8 +73,8 @@ final class DefinitionChecksumTest extends TestCase {
     $definition = ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']];
     $first = $this->checksum($definition);
     $second = $this->checksum($definition);
-    self::assertSame($first, $second);
-    self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $first, 'The identity key must be a stable hex digest.');
+    $this->assertSame($first, $second);
+    $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $first, 'The identity key must be a stable hex digest.');
   }
 
   /**
@@ -101,7 +101,7 @@ final class DefinitionChecksumTest extends TestCase {
       ],
       'plugin' => 'local',
     ];
-    self::assertSame(
+    $this->assertSame(
       $this->checksum($one),
       $this->checksum($reordered),
       'A merged definition assembled from a different source order is the same definition.',
@@ -114,7 +114,7 @@ final class DefinitionChecksumTest extends TestCase {
   public function testChangedRootProducesDifferentKey(): void {
     $before = ['plugin' => 'local', 'config' => ['root' => 'sites/default/files']];
     $after = ['plugin' => 'local', 'config' => ['root' => 'sites/other/files']];
-    self::assertNotSame($this->checksum($before), $this->checksum($after));
+    $this->assertNotSame($this->checksum($before), $this->checksum($after));
   }
 
   /**
@@ -122,7 +122,7 @@ final class DefinitionChecksumTest extends TestCase {
    */
   public function testDifferentPluginProducesDifferentKey(): void {
     $config = ['config' => ['shared' => TRUE]];
-    self::assertNotSame(
+    $this->assertNotSame(
       $this->checksum(['plugin' => 'local'] + $config),
       $this->checksum(['plugin' => 's3'] + $config),
     );
@@ -143,7 +143,7 @@ final class DefinitionChecksumTest extends TestCase {
     $before = $this->checksum($definition);
     putenv('FLYSYSTEM_TEST_SECRET=second-value');
     $after = $this->checksum($definition);
-    self::assertSame($before, $after, 'The same environment reference must key identically whatever it resolves to.');
+    $this->assertSame($before, $after, 'The same environment reference must key identically whatever it resolves to.');
   }
 
   /**
@@ -155,7 +155,7 @@ final class DefinitionChecksumTest extends TestCase {
     $base = ['plugin' => 's3', 'config' => ['bucket' => 'cdn']];
     $one = $base + ['secret' => 'env:FLYSYSTEM_TEST_SECRET_A'];
     $two = $base + ['secret' => 'env:FLYSYSTEM_TEST_SECRET_B'];
-    self::assertNotSame($this->checksum($one), $this->checksum($two));
+    $this->assertNotSame($this->checksum($one), $this->checksum($two));
   }
 
   /**
@@ -164,7 +164,7 @@ final class DefinitionChecksumTest extends TestCase {
   public function testListOrderIsSignificant(): void {
     $one = ['plugin' => 'local', 'config' => ['allowed' => ['a', 'b']]];
     $two = ['plugin' => 'local', 'config' => ['allowed' => ['b', 'a']]];
-    self::assertNotSame(
+    $this->assertNotSame(
       $this->checksum($one),
       $this->checksum($two),
       'Lists carry meaning in their order; only named mappings are normalized.',
@@ -177,18 +177,18 @@ final class DefinitionChecksumTest extends TestCase {
   public function testTypesAreDistinguished(): void {
     $stringy = ['plugin' => 'local', 'config' => ['depth' => '1']];
     $numeric = ['plugin' => 'local', 'config' => ['depth' => 1]];
-    self::assertNotSame($this->checksum($stringy), $this->checksum($numeric));
+    $this->assertNotSame($this->checksum($stringy), $this->checksum($numeric));
   }
 
   /**
    * Verifies an empty definition still keys (and keys differently per plugin).
    */
   public function testMinimalDefinitionsKeyStably(): void {
-    self::assertNotSame(
+    $this->assertNotSame(
       $this->checksum(['plugin' => 'local', 'config' => []]),
       $this->checksum(['plugin' => 'memory', 'config' => []]),
     );
-    self::assertSame(
+    $this->assertSame(
       $this->checksum(['plugin' => 'local']),
       $this->checksum(['plugin' => 'local', 'config' => []]),
       'A missing config section is the same definition as an empty one.',

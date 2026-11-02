@@ -117,7 +117,7 @@ class BindingResolver {
     // higher-precedence source wins every leaf.
     $adapters = [];
     foreach (array_reverse($this->sources) as $source) {
-      $adapters = static::deepMerge($adapters, $source->getAdapterDefinitions());
+      $adapters = $this->deepMerge($adapters, $source->getAdapterDefinitions());
     }
 
     // Validate the touched scheme against the effective layer, before any
@@ -134,7 +134,7 @@ class BindingResolver {
       throw new UnknownAdapterDefinitionException($adapter_id, $scheme);
     }
 
-    $config = static::deepMerge(
+    $config = $this->deepMerge(
       is_array($definition['config'] ?? NULL) ? $definition['config'] : [],
       is_array($binding['config'] ?? NULL) ? $binding['config'] : [],
     );
@@ -160,22 +160,15 @@ class BindingResolver {
    * @return array
    *   The merged result.
    */
-  protected static function deepMerge(array $base, array $override): array {
+  protected function deepMerge(array $base, array $override): array {
     foreach ($override as $key => $value) {
-      if (is_array($value) && isset($base[$key]) && is_array($base[$key]) && !self::isList($value) && !self::isList($base[$key])) {
-        $base[$key] = static::deepMerge($base[$key], $value);
+      if (is_array($value) && isset($base[$key]) && is_array($base[$key]) && !array_is_list($value) && !array_is_list($base[$key])) {
+        $base[$key] = $this->deepMerge($base[$key], $value);
         continue;
       }
       $base[$key] = $value;
     }
     return $base;
-  }
-
-  /**
-   * TRUE for sequential-list arrays, which merge as a whole, not per leaf.
-   */
-  private static function isList(array $array): bool {
-    return array_is_list($array);
   }
 
 }

@@ -53,18 +53,18 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
   public function testContributedAdapterIsDiscoveredThroughThePluginApi(): void {
     /** @var \Drupal\flysystem\Adapter\FlysystemAdapterManager $manager */
     $manager = $this->container->get('flysystem.adapter_manager');
-    self::assertInstanceOf(FlysystemAdapterManager::class, $manager);
+    $this->assertInstanceOf(FlysystemAdapterManager::class, $manager);
 
     $definitions = $manager->getDefinitions();
-    self::assertArrayHasKey('test_adapter', $definitions, 'A class shipped by another module in Plugin/FlysystemAdapter becomes a discoverable adapter through the plugin API.');
-    self::assertArrayHasKey('local', $definitions, 'The first-party local adapter rides the identical discovery rail.');
-    self::assertArrayNotHasKey('in_memory', $definitions, 'An adapter shipped by a module that is not enabled is simply absent — module presence, not a branch in code, decides what exists.');
-    self::assertSame(
+    $this->assertArrayHasKey('test_adapter', $definitions, 'A class shipped by another module in Plugin/FlysystemAdapter becomes a discoverable adapter through the plugin API.');
+    $this->assertArrayHasKey('local', $definitions, 'The first-party local adapter rides the identical discovery rail.');
+    $this->assertArrayNotHasKey('in_memory', $definitions, 'An adapter shipped by a module that is not enabled is simply absent — module presence, not a branch in code, decides what exists.');
+    $this->assertSame(
       MemoryBackedTestAdapter::class,
       $definitions['test_adapter']['class'],
       'The definition names the contributed class.'
     );
-    self::assertSame(
+    $this->assertSame(
       'Altered through the info hook',
       (string) $definitions['test_adapter']['label'],
       'The standard info hook alters discovered definitions before they are handed out.'
@@ -81,7 +81,7 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
 
     $cache = $this->container->get('cache.discovery')
       ->get('flysystem_adapter_plugins');
-    self::assertNotFalse(
+    $this->assertNotFalse(
       $cache,
       'The manager caches its definitions under the discovery cache bin — a cacheable extension rail is the point of using the plugin API.'
     );
@@ -94,13 +94,13 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
     /** @var \Drupal\flysystem\Adapter\FlysystemAdapterManager $manager */
     $manager = $this->container->get('flysystem.adapter_manager');
     $adapter = $manager->createInstance('test_adapter', ['marker' => 'x']);
-    self::assertInstanceOf(FlysystemAdapterInterface::class, $adapter);
-    self::assertInstanceOf(
+    $this->assertInstanceOf(FlysystemAdapterInterface::class, $adapter);
+    $this->assertInstanceOf(
       MemoryBackedTestAdapter::class,
       $adapter,
       'The factory builds the plugin — production code never calls new on an adapter class.'
     );
-    self::assertSame('test_adapter', $adapter->getPluginId());
+    $this->assertSame('test_adapter', $adapter->getPluginId());
   }
 
   /**
@@ -111,20 +111,20 @@ final class ContribStyleAdapterDiscoveryTest extends KernelTestBase {
     $factory = $this->container->get('flysystem.operator_factory');
 
     $operator = $factory->operatorFor('ttest');
-    self::assertInstanceOf(
+    $this->assertInstanceOf(
       FilesystemOperator::class,
       $operator,
       'A scheme bound to a contributed driver resolves to a working operator with no production change.'
     );
 
     $operator->write('proof.txt', 'contributed');
-    self::assertSame(
+    $this->assertSame(
       'contributed',
       $operator->read('proof.txt'),
       'Bytes round-trip through the contributed backend.'
     );
 
-    self::assertSame(
+    $this->assertSame(
       $operator,
       $factory->operatorFor('ttest'),
       'The operator is memoized for the request, as with first-party adapters.'
