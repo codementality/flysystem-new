@@ -81,7 +81,23 @@ abstract class FileReplayBase extends KernelTestBase {
       ->set('temporary_maximum_age', 21600)
       ->save();
 
+    // The local hosts bind a real test site directory: the copied
+    // corpus exercises the storage from both directions — through the
+    // wrapper and through raw PHP fixture calls (symlink, mkdir,
+    // seed writes, permission probes), and core's own move fallback
+    // works on resolved disk paths. Both directions must therefore
+    // name the same real directory; the kernel's vfs:// site answers
+    // only one of them. The kernel removes non-vfs site directories
+    // at teardown the same way core's own tests clean up.
     $this->replayRoot = $this->siteDirectory . '/replay-root';
+    if ($this->replayIsLocalStorage()) {
+      $real_site = 'sites/simpletest/' . $this->databasePrefix;
+      $this->siteDirectory = $real_site;
+      $this->replayRoot = \Drupal::root() . '/' . $real_site . '/replay-root';
+      if (!is_dir($this->replayRoot)) {
+        mkdir($this->replayRoot, 0775, TRUE);
+      }
+    }
     // The binding is ordinary site configuration: the adapter word and
     // its config flow through the same resolution path the production
     // wrapper will read them through once storage behavior lands. No

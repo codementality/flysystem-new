@@ -113,7 +113,7 @@ class DispatchProbedStreamWrapper extends FlysystemStreamWrapper {
   /**
    * {@inheritdoc}
    */
-  public function stream_cast($cast_as): bool {
+  public function stream_cast($cast_as) {
     static::record(__FUNCTION__);
     return parent::stream_cast($cast_as);
   }

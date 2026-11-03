@@ -137,3 +137,28 @@ Where the library cannot express something the surrounding integration
 requires, the base module implements what it can express, proves the
 constraint with a named test, and records the deviation here — one
 entry per proving test, in plain language, never a silent gap.
+- **Numeric permission modes are a binary visibility question** —
+  proven by
+  `Drupal\Tests\flysystem\Kernel\Core\DirectoryLocalTest::testDirectoryPermissionLegs`.
+  The filesystem operator contract carries visibility as the two
+  values `public` and `private`
+  (`vendor/league/flysystem/src/FilesystemWriter.php`,
+  `setVisibility()`); there is no numeric chmod through it. A chmod
+  request maps to the side its read bits indicate, and stat answers
+  report the mode the site declares for that visibility (the same
+  values the local adapter creates files with). A mode outside that
+  distinction — 0444, for example — cannot be created or reported.
+- **Locks are advisory per open handle** — proven by
+  `Drupal\Tests\flysystem\Kernel\Core\HandleSemanticsLocalTest::testFlockThroughTheWrapper`
+  and its in-memory twin. The operator exposes no locking, so
+  `flock()` against a wrapper stream succeeds and tracks its own
+  handle; it does not coordinate with other processes or other
+  handles of the same object. Backends that can lock natively are
+  free to deepen this.
+- **Touch creates; it cannot set a timestamp** — proven by the
+  `touch()` legs of the filesystem copy-contract replays
+  (`Drupal\Tests\flysystem\Kernel\Core\FileSystemLocalTest`, every
+  case that seeds a file with `touch()` before asserting on it).
+  The operator reads `lastModified()` but has no write path for
+  modification times, so touching an existing object succeeds
+  without changing its timestamp.

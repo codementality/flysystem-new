@@ -20,7 +20,8 @@ final class LexicalPath {
    *
    * @param string $path
    *   The configured path. Absolute paths are kept (still normalized);
-   *   relative paths are anchored to the app root.
+   *   relative paths are anchored to the app root; stream-URL paths
+   *   (scheme://...) pass through as their own absolute locations.
    * @param string $appRoot
    *   The app root to anchor against (trailing separators normalized).
    *
@@ -28,6 +29,15 @@ final class LexicalPath {
    *   The lexically resolved absolute path.
    */
   public static function resolve(string $path, string $appRoot): string {
+    // A configured stream-URL root ('vfs://root/files', a remote
+    // locator) is already absolute in its own space; anchoring it
+    // against the app root would invent a disk directory named after
+    // the scheme. Such roots pass through untouched — their
+    // containment is the adapter's and the operator's business, not
+    // this function's.
+    if (preg_match('#^[a-zA-Z][a-zA-Z0-9+.\-]*://#', $path) === 1) {
+      return $path;
+    }
     $appRoot = rtrim($appRoot, '/');
     $anchored = str_starts_with($path, '/') ? $path : $appRoot . '/' . $path;
     $segments = [];

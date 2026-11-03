@@ -128,4 +128,31 @@ final class OperatorFactory {
     return $this->operators[$key];
   }
 
+  /**
+   * The local disk root behind a scheme, when it has one.
+   *
+   * Answers the location question for wrapper metadata surfaces
+   * (realpath, URL derivation). It never returns a path for a
+   * non-local backend or an unbound scheme; content operations keep
+   * going through the operator.
+   *
+   * @param string $scheme
+   *   The scheme being asked about.
+   *
+   * @return string|null
+   *   The absolute root path, or NULL when the scheme is not local
+   *   disk storage (or resolves to core-native storage).
+   */
+  public function localRootFor(string $scheme): ?string {
+    $definition = $this->resolver->resolve($scheme);
+    if ($definition === NULL) {
+      return NULL;
+    }
+    $plugin_id = $definition['adapter'];
+    if (($this->isLocalMode)($plugin_id) !== TRUE) {
+      return NULL;
+    }
+    return $this->adapterManager->createInstance($plugin_id, $definition['config'])->rootPath();
+  }
+
 }
