@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\flysystem\Kernel\Core;
 
 use Drupal\Core\DependencyInjection\ContainerBuilder;
+use Drupal\Core\Site\Settings;
 
 /**
  * Replayed from core's ReadOnlyStreamWrapperTest, scheme-parameterized.
@@ -43,6 +44,17 @@ abstract class ReadOnlyReplay extends FileReplayBase {
    */
   protected function setUp(): void {
     parent::setUp();
+    // Bind the read-only scheme to the same storage the harness just
+    // configured for the replay scheme: a registered wrapper without
+    // a binding resolves core-native and would answer nothing to
+    // operate on. (Harness placement of the binding, not a new
+    // expectation: the replayed legs are unchanged.)
+    $bindings = Settings::get('flysystem', []);
+    $bindings['fsreadonly'] = [
+      'adapter' => $this->replayAdapter(),
+      'config' => $this->replayConfig(),
+    ];
+    $this->setSetting('flysystem', $bindings);
     // The replayed legs run against the read-only scheme; the harness
     // helpers follow this property. The container was already built
     // with both schemes registered when the parent set-up ran.

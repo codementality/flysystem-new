@@ -111,11 +111,7 @@ final class Local extends FlysystemAdapterBase implements LocalStorageInterface,
    */
   public function adapter(): FilesystemAdapter {
     if ($this->leagueAdapter === NULL) {
-      $root = $this->configuration['root'] ?? '';
-      if (!is_string($root) || $root === '') {
-        throw new \InvalidArgumentException('The local adapter requires a non-empty "root" configuration value.');
-      }
-      $resolved = LexicalPath::resolve($root, $this->appRoot);
+      $resolved = $this->resolveRoot();
 
       $this->leagueAdapter = new DrupalLocalFilesystemAdapter(
         $resolved,
@@ -126,6 +122,27 @@ final class Local extends FlysystemAdapterBase implements LocalStorageInterface,
       );
     }
     return $this->leagueAdapter;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function rootPath(): ?string {
+    return $this->resolveRoot();
+  }
+
+  /**
+   * The configured root anchored against the app root.
+   *
+   * @return string
+   *   The absolute root path.
+   */
+  protected function resolveRoot(): string {
+    $root = $this->configuration['root'] ?? '';
+    if (!is_string($root) || $root === '') {
+      throw new \InvalidArgumentException('The local adapter requires a non-empty "root" configuration value.');
+    }
+    return LexicalPath::resolve($root, $this->appRoot);
   }
 
   /**

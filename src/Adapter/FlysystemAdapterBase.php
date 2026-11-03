@@ -33,4 +33,13 @@ abstract class FlysystemAdapterBase extends PluginBase implements FlysystemAdapt
    */
   abstract public function adapter(): FilesystemAdapter;
 
+  /**
+   * {@inheritdoc}
+   */
+  public function rootPath(): ?string {
+    // Backends without a machine-local disk root answer NULL; the
+    // local-storage plugin overrides this.
+    return NULL;
+  }
+
 }

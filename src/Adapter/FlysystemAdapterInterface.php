@@ -52,4 +52,18 @@ interface FlysystemAdapterInterface extends PluginInspectionInterface {
    */
   public function isAvailable(): bool;
 
+  /**
+   * The absolute local directory this binding stores into, if any.
+   *
+   * Metadata for answers that name a location — realpath and URL
+   * derivation — never for moving bytes. Remote backends and any
+   * binding without a machine-local root return NULL; storage reads
+   * and writes go through the operator regardless.
+   *
+   * @return string|null
+   *   The resolved root path, or NULL when the backend has no local
+   *   disk root.
+   */
+  public function rootPath(): ?string;
+
 }
